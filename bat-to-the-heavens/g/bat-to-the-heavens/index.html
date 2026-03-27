@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+    <title>bat to the heavens</title>
+    <link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+    <link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+    <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body, #canvas {
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        body {
+            color: white;
+            background-color: black;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        #canvas:focus {
+            outline: none;
+        }
+
+        /* Progress loader UI */
+        #loader-screen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Figtree', Arial, sans-serif;
+            z-index: 999;
+        }
+
+        #loader-screen h1 {
+            color: #fff;
+            font-size: 2rem;
+            margin-bottom: 24px;
+            letter-spacing: 0.05em;
+        }
+
+        .file-row {
+            display: flex;
+            gap: 8px;
+            font-size: 0.95rem;
+            margin: 4px 0;
+        }
+
+        .file-name {
+            color: #F5A9B8;
+        }
+
+        .file-status {
+            color: #5BCEFA;
+        }
+
+        .file-status.pending {
+            color: #888;
+        }
+
+        /* Godot's built-in status overlay (reused for error notices) */
+        #status-notice {
+            display: none;
+            background-color: #5b3943;
+            border-radius: 0.5rem;
+            border: 1px solid #9b3943;
+            color: #e0e0e0;
+            font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+            line-height: 1.3;
+            margin: 1rem 2rem 0;
+            overflow: hidden;
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas">
+    Your browser does not support the canvas tag.
+</canvas>
+
+<noscript>
+    Your browser does not support JavaScript.
+</noscript>
+
+<div id="loader-screen">
+    <h1>~ loading... :3 ~</h1>
+    <img src="/img/ritsu-spin.gif" alt="ritsu" width="200" height="200" style="margin-bottom: 24px;">
+    <div class="file-row">
+        <span class="file-name">index.pck:</span>
+        <span class="file-status pending" id="status-pck">waiting...</span>
+    </div>
+    <div class="file-row">
+        <span class="file-name">index.wasm:</span>
+        <span class="file-status pending" id="status-wasm">waiting...</span>
+    </div>
+    <div id="status-notice"></div>
+</div>
+
+<script>
+    function mergeFiles(fileParts, onProgress) {
+        return new Promise((resolve, reject) => {
+            let buffers = [];
+
+            function fetchPart(index) {
+                if (index >= fileParts.length) {
+                    const totalLength = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+                    console.log(`Combined size for ${fileParts[0].split(".part")[0]}:`, totalLength);
+
+                    const combined = new Uint8Array(totalLength);
+                    let offset = 0;
+                    for (const buf of buffers) {
+                        combined.set(new Uint8Array(buf), offset);
+                        offset += buf.byteLength;
+                    }
+
+                    const mergedBlob = new Blob([combined], { type: "application/octet-stream" });
+                    resolve(mergedBlob);
+                    return;
+                }
+
+                fetch(fileParts[index])
+                    .then(resp => {
+                        if (!resp.ok) throw new Error(`Failed to fetch ${fileParts[index]}`);
+                        return resp.arrayBuffer();
+                    })
+                    .then(data => {
+                        buffers.push(data);
+                        if (onProgress) onProgress(index + 1, fileParts.length);
+                        fetchPart(index + 1);
+                    })
+                    .catch(reject);
+            }
+
+            fetchPart(0);
+        });
+    }
+
+    function getParts(file, totalParts) {
+        let parts = [];
+        for (let i = 0; i < totalParts; i++) {
+            parts.push(`${file}.part${i}`);
+        }
+        return parts;
+    }
+
+    function setStatus(id, text, done) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.classList.remove('pending');
+        if (done) el.style.color = '#00e676';
+        else el.style.color = '#ffeb3b';
+    }
+
+    const pckParts = 13;
+    const wasmParts = 2;
+
+    setStatus('status-pck', 'merging... 0/' + pckParts);
+    setStatus('status-wasm', 'merging... 0/' + wasmParts);
+
+    const pckPromise = mergeFiles(getParts("index.pck", pckParts), (done, total) => {
+        setStatus('status-pck', `merging... ${done}/${total}`);
+    }).then(blob => {
+        setStatus('status-pck', 'done ✓', true);
+        return blob;
+    });
+
+    const wasmPromise = mergeFiles(getParts("index.wasm", wasmParts), (done, total) => {
+        setStatus('status-wasm', `merging... ${done}/${total}`);
+    }).then(blob => {
+        setStatus('status-wasm', 'done ✓', true);
+        return blob;
+    });
+
+    Promise.all([pckPromise, wasmPromise])
+    .then(([pckBlob, wasmBlob]) => {
+        const pckBlobUrl = URL.createObjectURL(pckBlob);
+        const wasmBlobUrl = URL.createObjectURL(wasmBlob);
+
+        const originalFetch = window.fetch;
+        window.fetch = async function(url, ...args) {
+            if (typeof url === "string" && url.endsWith("index.pck")) return originalFetch(pckBlobUrl, ...args);
+            if (typeof url === "string" && url.endsWith("index.wasm")) return originalFetch(wasmBlobUrl, ...args);
+            return originalFetch(url, ...args);
+        };
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            if (typeof url === "string" && url.includes("index.pck")) url = pckBlobUrl;
+            if (typeof url === "string" && url.includes("index.wasm")) url = wasmBlobUrl;
+            return originalOpen.call(this, method, url, ...rest);
+        };
+
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "index.js";
+            script.onload = resolve;
+            script.onerror = reject;
+            document.body.appendChild(script);
+        });
+    })
+    .then(() => {
+        const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":270575744,"index.wasm":35376909},"focusCanvas":true,"gdextensionLibs":[]};
+        const GODOT_THREADS_ENABLED = false;
+        const engine = new Engine(GODOT_CONFIG);
+
+        const statusNotice = document.getElementById('status-notice');
+
+        function setStatusNotice(text) {
+            statusNotice.innerHTML = '';
+            text.split('\n').forEach(line => {
+                statusNotice.appendChild(document.createTextNode(line));
+                statusNotice.appendChild(document.createElement('br'));
+            });
+            statusNotice.style.display = 'block';
+        }
+
+        function displayFailureNotice(err) {
+            console.error(err);
+            setStatusNotice(err instanceof Error ? err.message : typeof err === 'string' ? err : 'An unknown error occurred');
+        }
+
+        const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+
+        if (missing.length !== 0) {
+            if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+                Promise.race([
+                    navigator.serviceWorker.getRegistration().then((registration) => {
+                        if (registration != null) return Promise.reject(new Error('Service worker already exists.'));
+                        return registration;
+                    }).then(() => engine.installServiceWorker()),
+                    new Promise((resolve) => { setTimeout(() => resolve(), 2000); }),
+                ]).catch((err) => {
+                    console.error('Error while registering service worker:', err);
+                }).then(() => { window.location.reload(); });
+            } else {
+                displayFailureNotice('Error\nThe following features required to run Godot projects on the Web are missing:\n' + missing.join('\n'));
+            }
+        } else {
+            document.getElementById('loader-screen').style.display = 'none';
+            document.getElementById('canvas').style.display = 'block';
+
+            engine.startGame({
+                'onProgress': function(current, total) { /* Godot handles this internally */ },
+            }).then(() => {}, displayFailureNotice);
+        }
+    })
+    .catch(err => {
+        console.error("Failed to merge parts:", err);
+        document.getElementById('loader-screen').innerHTML =
+            `<h1 style="color:#ff4444">Error loading game.<br><small style="font-size:0.8rem">${err.message}</small></h1>`;
+    });
+</script>
+</body>
+</html>
