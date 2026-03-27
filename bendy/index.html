@@ -1,139 +1,140 @@
 <!DOCTYPE html>
 <html lang="en-us">
-
-<head>
-  <base href="https://cdn.jsdelivr.net/gh/genizy/web-port@main/bendy/">
+  <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Unity WebGL Player | OldCh2RippedTwo</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <title>Unity WebGL Player | Bendy and the Ink Machine</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            border: 0;
-            overflow: hidden;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box
+      }
 
-        body {
-            background: #000;
-            position: fixed;
-            width: 100%;
-            height: 100%;
-        }
+      body {
+        background: #000;
+        overflow: hidden
+      }
 
-        .webgl-content {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-        }
+      #loading-text {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        font: 24px Arial
+      }
 
-        #unityContainer {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-        }
+      #unity-canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block
+      }
 
-        .footer {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            padding: 10px 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 100;
-        }
-
-        .fullscreen {
-            cursor: pointer;
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            background: url('TemplateData/fullscreen.png') no-repeat center;
-        }
+      #unity-mobile-warning {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        background: rgba(0, 0, 0, .9);
+        padding: 20px;
+        border-radius: 8px;
+        font: 14px Arial
+      }
     </style>
-    <script src="TemplateData/UnityProgress.js"></script>
-    <script src="Build/UnityLoader.js"></script>
+  </head>
+  <body>
+    <div id="unity-mobile-warning">WebGL not supported on mobile</div>
+    <div id="loading-text">Loading...</div>
+    <canvas id="unity-canvas"></canvas>
+
     <script>
-        function mergeFiles(fileParts) {
-            return new Promise((resolve, reject) => {
-                let buffers = [];
+      alert("this web port was made by slant + crackers (woahhcrackers) dont take credit for it")
 
-                function fetchPart(index) {
-                    if (index >= fileParts.length) {
-                        let mergedBlob = new Blob(buffers);
-                        let mergedFileUrl = URL.createObjectURL(mergedBlob);
-                        resolve(mergedFileUrl);
-                        return;
-                    }
-                    fetch(fileParts[index]).then((response) => response.arrayBuffer()).then((data) => {
-                        buffers.push(data);
-                        fetchPart(index + 1);
-                    }).catch(reject);
-                }
-                fetchPart(0);
-            });
+      const lt = document.getElementById("loading-text"),
+            cv = document.getElementById("unity-canvas"),
+            mw = document.getElementById("unity-mobile-warning");
+
+      let lb = 0;
+      const tm = '576.24';
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        const m = document.createElement('meta');
+        m.name = 'viewport';
+        m.content = 'width=device-width,height=device-height,initial-scale=1,user-scalable=no,shrink-to-fit=yes';
+        document.head.appendChild(m);
+        mw.style.display = "block";
+        setTimeout(() => mw.style.display = "none", 5000);
+      }
+
+      async function fwp(u) {
+        const r = await fetch(u),
+          rd = r.body.getReader(),
+          ch = [];
+
+        while (true) {
+          const { done, value } = await rd.read();
+          if (done) break;
+          lb += value.length;
+          ch.push(value);
+          lt.textContent = `${(lb/1048576).toFixed(2)} MB / ${tm} MB`;
         }
 
-        function getParts(file, start, end) {
-            let parts = [];
-            for (let i = start; i <= end; i++) {
-                parts.push(file + ".part" + i);
-            }
-            return parts;
-        }
+        return URL.createObjectURL(new Blob(ch));
+      }
 
-        function resizeUnityContainer() {
-            var container = document.getElementById("unityContainer");
-            container.style.width = window.innerWidth + "px";
-            container.style.height = window.innerHeight + "px";
-        }
-        Promise.all([
-            mergeFiles(getParts("Build/BATIM.data.unityweb", 1, 7))
-        ]).then(([dataUrl]) => {
-            window.dataUrll = dataUrl;
-            var json = {
-                "companyName": "DefaultCompany",
-                "productName": "OldCh2RippedTwo",
-                "productVersion": "1.0",
-                "dataUrl": "BATIM.data.unityweb",
-                "wasmCodeUrl": "BATIM.wasm.code.unityweb",
-                "wasmFrameworkUrl": "BATIM.wasm.framework.unityweb",
-                "graphicsAPI": ["WebGL 2.0", "WebGL 1.0"],
-                "webglContextAttributes": {
-                    "preserveDrawingBuffer": false
-                },
-                "splashScreenStyle": "Dark",
-                "backgroundColor": "#231F20",
-                "developmentBuild": false,
-                "multithreading": false,
-                "unityVersion": "2019.4.17f1"
-            };
-            let blob = new Blob([JSON.stringify(json)], {
-                type: 'application/json'
-            });
-            let blobUrl = URL.createObjectURL(blob);
-            window.addEventListener('resize', resizeUnityContainer);
-            UnityLoader.instantiate("unityContainer", json, {
-                onProgress: UnityProgress,
-                url: blobUrl,
-                Module: {
-                    onRuntimeInitialized: function () {
-                        resizeUnityContainer();
-                        document.querySelector("#loading-text").remove();
-                    }
-                }
-            });
+      async function mf(p) {
+        const b = await Promise.all(p.map(fwp)),
+              bl = await Promise.all(b.map(u => fetch(u).then(r => r.blob())));
+        return URL.createObjectURL(new Blob(bl));
+      }
+
+      function gp(base, start, end) {
+        return Array.from({ length: end - start + 1 }, (_, i) => {
+          const n = String(start + i).padStart(3, '0');
+          return `${base}.${n}`;
         });
+      }
+
+      (async () => {
+
+        async function autoChunks(base, max = 200) {
+          const urls = [];
+          for (let i = 1; i <= max; i++) {
+            const n = String(i).padStart(3, '0');
+            const url = `${base}.${n}`;
+            const r = await fetch(url, { method: 'HEAD' });
+            if (!r.ok) break;
+            urls.push(url);
+          }
+          return urls;
+        }
+
+        const dc = await autoChunks("Build/BATIM.data");
+        const du = await mf(dc);
+        const wu = "Build/BATIM.wasm";
+
+        sc = document.createElement("script");
+        sc.src = "Build/BATIM.loader.js";
+
+        sc.onload = () => {
+          createUnityInstance(cv, {
+            dataUrl: du,
+            frameworkUrl: "Build/BATIM.framework.js",
+            codeUrl: wu,
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "crackers",
+            productName: "BATIM",
+            productVersion: "1.0"
+          }).then(() => {
+            lt.remove();
+          }).catch(alert);
+        };
+
+        document.body.appendChild(sc);
+		alert("this web port was made by slant + crackers (woahhcrackers) dont take credit for it")
+      })();
     </script>
-</head>
-
-<body>
-    <div class="webgl-content">
-      <div id="loading-text" style="color: white; font-size: 48px; font-family: cursive; text-align: center; margin-top: 20px;">LOADING...</div>
-        <div id="unityContainer"></div>
-    </div>
-</body>
-
+  </body>
 </html>
