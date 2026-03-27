@@ -1,0 +1,14 @@
+{
+"companyName": "Puppet Combo",
+"productName": "Christmas Massacre",
+"dataUrl": "testbuild.data.unityweb",
+"asmCodeUrl": "testbuild.asm.code.unityweb",
+"asmMemoryUrl": "testbuild.asm.memory.unityweb",
+"asmFrameworkUrl": "testbuild.asm.framework.unityweb",
+"TOTAL_MEMORY": 1073741824,
+"graphicsAPI": ["WebGL 2.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"splashScreenStyle": "Dark",
+"backgroundColor": "#1C0080",
+"cacheControl": {"dataUrl": "must-revalidate"}
+}
