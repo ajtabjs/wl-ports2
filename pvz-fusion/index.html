@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+<title>Unity WebGL Player | PlantsVsZombiesRH</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #unity-canvas {
+    display: none;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+  }
+
+  #loader-screen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Figtree', Arial, sans-serif;
+    z-index: 999;
+  }
+
+  #loader-screen h1 {
+    color: #fff;
+    font-size: 2rem;
+    margin-bottom: 24px;
+    letter-spacing: 0.05em;
+  }
+
+  .file-row {
+    display: flex;
+    gap: 8px;
+    font-size: 0.95rem;
+    margin: 4px 0;
+  }
+
+  .file-name {
+    color: #F5A9B8;
+  }
+
+  .file-status {
+    color: #5BCEFA;
+  }
+
+  .file-status.pending {
+    color: #888;
+  }
+</style>
+</head>
+<body>
+
+<div id="loader-screen">
+  <h1>~ loading... :3 ~</h1>
+<img src="/img/ritsu-spin.gif" alt="ritsu" width="200" height="200" style="margin-bottom: 24px;">
+  <div class="file-row">
+    
+    <span class="file-name">build.data:</span>
+    <span class="file-status pending" id="status-data">waiting...</span>
+  </div>
+  <div class="file-row">
+    <span class="file-name">build.wasm:</span>
+    <span class="file-status pending" id="status-wasm">waiting...</span>
+  </div>
+</div>
+
+<canvas id="unity-canvas" tabindex="-1"></canvas>
+<script src="Build/build.loader.js"></script>
+<script>
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    var meta = document.createElement('meta');
+    meta.name = 'viewport';
+    meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+    document.getElementsByTagName('head')[0].appendChild(meta);
+  }
+
+  function mergeFiles(fileParts, onProgress) {
+    return new Promise((resolve, reject) => {
+      let buffers = [];
+
+      function fetchPart(index) {
+        if (index >= fileParts.length) {
+          const totalLength = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+          const combined = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const buf of buffers) {
+            combined.set(new Uint8Array(buf), offset);
+            offset += buf.byteLength;
+          }
+          const mergedBlob = new Blob([combined], { type: "application/octet-stream" });
+          resolve(mergedBlob);
+          return;
+        }
+
+        fetch(fileParts[index])
+          .then(resp => {
+            if (!resp.ok) throw new Error(`Failed to fetch ${fileParts[index]}`);
+            return resp.arrayBuffer();
+          })
+          .then(data => {
+            buffers.push(data);
+            if (onProgress) onProgress(index + 1, fileParts.length);
+            fetchPart(index + 1);
+          })
+          .catch(reject);
+      }
+
+      fetchPart(0);
+    });
+  }
+
+  function getParts(file, totalParts) {
+    let parts = [];
+    for (let i = 0; i < totalParts; i++) {
+      parts.push(`${file}.part${i}`);
+    }
+    return parts;
+  }
+
+  function setStatus(id, text, done) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.classList.remove('pending');
+    if (done) el.style.color = '#00e676';
+    else el.style.color = '#ffeb3b';
+  }
+
+  const dataParts = 9;
+  const wasmParts = 2;
+
+  setStatus('status-data', 'merging... 0/' + dataParts);
+  setStatus('status-wasm', 'merging... 0/' + wasmParts);
+
+  const dataPromise = mergeFiles(getParts("Build/build.data", dataParts), (done, total) => {
+    setStatus('status-data', `merging... ${done}/${total}`);
+  }).then(blob => {
+    setStatus('status-data', 'done ✓', true);
+    return blob;
+  });
+
+  const wasmPromise = mergeFiles(getParts("Build/build.wasm", wasmParts), (done, total) => {
+    setStatus('status-wasm', `merging... ${done}/${total}`);
+  }).then(blob => {
+    setStatus('status-wasm', 'done ✓', true);
+    return blob;
+  });
+
+  Promise.all([dataPromise, wasmPromise])
+  .then(([dataBlob, wasmBlob]) => {
+    const dataBlobUrl = URL.createObjectURL(dataBlob);
+    const wasmBlobUrl = URL.createObjectURL(wasmBlob);
+
+    const originalFetch = window.fetch;
+    window.fetch = async function(url, ...args) {
+      if (typeof url === 'string') {
+        if (url.includes("build.data")) return originalFetch(dataBlobUrl, ...args);
+        if (url.includes("build.wasm")) return originalFetch(wasmBlobUrl, ...args);
+      }
+      return originalFetch(url, ...args);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+      if (typeof url === 'string') {
+        if (url.includes("build.data")) url = dataBlobUrl;
+        if (url.includes("build.wasm")) url = wasmBlobUrl;
+      }
+      return originalOpen.call(this, method, url, ...rest);
+    };
+
+    setTimeout(() => {
+      document.getElementById('loader-screen').style.display = 'none';
+      document.getElementById('unity-canvas').style.display = 'block';
+
+      createUnityInstance(document.querySelector("#unity-canvas"), {
+        dataUrl: "Build/build.data",
+        frameworkUrl: "Build/build.framework.js",
+        codeUrl: "Build/build.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "LanPiaoPiao",
+        productName: "PlantsVsZombiesRH",
+        productVersion: "1.0",
+      });
+    }, 500);
+  })
+  .catch(err => {
+    console.error("Failed to merge parts:", err);
+    document.getElementById('loader-screen').innerHTML =
+      `<h1 style="color:#ff4444">Error loading game.<br><small style="font-size:0.8rem">${err.message}</small></h1>`;
+  });
+</script>
+</body>
+</html>
