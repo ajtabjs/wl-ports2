@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<meta charset="utf-8">
+<title>Balatro | swag games</title>
+
+<script>
+// IndexedDB prefix patch
+const PREFIX = "Balatro_vanilla_";
+const originalOpen = indexedDB.open;
+const originalDeleteDatabase = indexedDB.deleteDatabase;
+indexedDB.open = function(name, version) {
+    const prefixedName = PREFIX + name;
+    return version !== undefined
+        ? originalOpen.call(this, prefixedName, version)
+        : originalOpen.call(this, prefixedName);
+};
+indexedDB.deleteDatabase = function(name) {
+    const prefixedName = PREFIX + name;
+    return originalDeleteDatabase.call(this, prefixedName);
+};
+</script>
+
+<script src="love.min.js"></script>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #231F20;
+}
+
+/* Canvas stays hidden until game starts */
+#canvas {
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#loading-text {
+    color: white;
+    font-size: 48px;
+    font-family: cursive;
+    text-align: center;
+    margin-top: 40px;
+}
+
+#barContainer {
+    width: 500px;
+    height: 24px;
+    background: #333;
+    margin: 20px auto;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#bar {
+    height: 100%;
+    width: 0%;
+    background: #ff66cc;
+}
+</style>
+</head>
+
+<body>
+
+<!-- Cuphead-style loading -->
+<div id="loading-text">LOADING...</div>
+<div id="barContainer"><div id="bar"></div></div>
+
+<!-- Love canvas -->
+<canvas id="canvas"></canvas>
+
+<script>
+/* -----------------------------
+   MODULE.JS CHUNK LOADING
+------------------------------*/
+
+const TOTAL_PARTS = 6;              // module.part0.js → module.part5.js
+const PART_PREFIX = "data/module.part";
+const bar = document.getElementById("bar");
+const loadingText = document.getElementById("loading-text");
+
+let loadedBytes = 0;
+
+async function fetchWithProgress(url) {
+    const response = await fetch(url);
+    const reader = response.body.getReader();
+
+    let chunks = [];
+    let received = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        received += value.length;
+        loadedBytes += value.length;
+
+        let mb = (loadedBytes / (1024 * 1024)).toFixed(2);
+
+        loadingText.innerHTML =
+            `loading :3 <br> ${mb} MB<br>`;
+
+        bar.style.width = Math.min((mb / 120) * 100, 100) + "%";
+    }
+
+    let buffer = new Uint8Array(received);
+    let offset = 0;
+    for (let chunk of chunks) {
+        buffer.set(chunk, offset);
+        offset += chunk.length;
+    }
+    return buffer;
+}
+
+async function mergeParts() {
+    const buffers = [];
+
+    for (let i = 0; i < TOTAL_PARTS; i++) {
+        const file = `${PART_PREFIX}${i}.js`;
+        buffers.push(await fetchWithProgress(file));
+    }
+
+    const merged = new Blob(buffers, { type: "application/javascript" });
+    return URL.createObjectURL(merged);
+}
+
+/* -----------------------------
+   MAIN BOOT LOGIC
+------------------------------*/
+
+(async() => {
+
+    // Load & merge chunked module.js
+    const moduleURL = await mergeParts();
+    await import(moduleURL);
+
+    // After module.js loads:
+    loadingText.textContent = "Loading game.love…";
+
+    // Now run original LÖVE boot logic
+    const d = await getSource();
+
+    Module = {
+        INITIAL_MEMORY: 2**28,
+        canvas: canvas,
+        printErr: console.error,
+        arguments: ["game.love"]
+    };
+
+    Module.preRun = [function () {
+        Module.addRunDependency("fp game.love");
+        var ptr = Module.getMemory(d.length);
+        Module.HEAPU8.set(d, ptr);
+        Module.FS_createDataFile('/', "game.love", d, true, true, true);
+        Module.removeRunDependency("fp game.love");
+    }];
+
+    // Hide loader
+    document.getElementById("loading-text").remove();
+    document.getElementById("barContainer").remove();
+
+    // Show canvas
+    document.getElementById("canvas").style.display = "block";
+
+    // Launch Love.js
+    Love(Module);
+})();
+</script>
+
+</body>
+</html>
