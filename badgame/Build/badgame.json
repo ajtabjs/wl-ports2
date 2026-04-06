@@ -1,0 +1,15 @@
+{
+"companyName": "Dani",
+"productName": "BadGame",
+"productVersion": "0.2",
+"dataUrl": "badgame.data.unityweb",
+"wasmCodeUrl": "badgame.wasm.code.unityweb",
+"wasmFrameworkUrl": "badgame.wasm.framework.unityweb",
+"graphicsAPI": ["WebGL 2.0","WebGL 1.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"splashScreenStyle": "Dark",
+"backgroundColor": "#231F20",
+"developmentBuild": false,
+"multithreading": false,
+"unityVersion": "2019.3.0f6"
+}
