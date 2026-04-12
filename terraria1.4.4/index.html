@@ -1,109 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Loading...</title>
-  <style>
-    @import url('https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap');
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" href="./app.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta property="og:title" content="Terrarium" />
+		<meta
+			property="og:description"
+			content="Terraria port for WebAssembly. Play Terraria online in the browser."
+		/>
+		<meta
+			name="description"
+			content="Terraria port for WebAssembly. Play Terraria online in the browser."
+		/>
+		<style>
+			html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+#game-container, iframe, canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+		</style>
+		<link rel="canonical" href="https://terraria.mercurywork.shop" />
+		<title>Terrarium</title>
+		<script type="module" crossorigin src="main.js"></script>
+	</head>
 
-    body {
-      background: #000;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+	<body>
+		<div id="app"></div>
+		<canvas id="canvas" style="width: 100%">
 
-    #loader-screen {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Figtree', Arial, sans-serif;
-      z-index: 999;
-    }
-
-    #loader-screen h1 {
-      color: #fff;
-      font-size: 2rem;
-      margin-bottom: 24px;
-      letter-spacing: 0.05em;
-    }
-
-    .file-row {
-      display: flex;
-      gap: 8px;
-      font-size: 0.95rem;
-      margin: 4px 0;
-    }
-
-    .file-name { color: #F5A9B8; }
-    .file-status { color: #5BCEFA; }
-    .file-status.pending { color: #888; }
-  </style>
-</head>
-<body>
-
-  <div id="loader-screen">
-    <h1>~ loading... :3 ~</h1>
-    <img src="../ritsu.gif" alt="ritsu" width="200" height="200" style="margin-bottom: 24px;">
-    <div class="file-row">
-      <span class="file-name">index.html:</span>
-      <span class="file-status pending" id="status-html">waiting...</span>
-    </div>
-  </div>
-
-  <script>
-    function setStatus(id, text, done) {
-      const el = document.getElementById(id);
-      el.textContent = text;
-      el.classList.remove('pending');
-      if (done) el.style.color = '#00e676';
-      else el.style.color = '#ffeb3b';
-    }
-
-    const parts = [
-      'index.html.part0',
-      'index.html.part1',
-      'index.html.part2',
-    ];
-
-    async function loadMergedHTML() {
-      setStatus('status-html', `merging... 0/${parts.length}`);
-
-      let chunks = [];
-      for (let i = 0; i < parts.length; i++) {
-        const r = await fetch(parts[i]);
-        if (!r.ok) throw new Error(`Failed to fetch ${parts[i]}`);
-        chunks.push(await r.text());
-        setStatus('status-html', `merging... ${i + 1}/${parts.length}`);
-      }
-
-      setStatus('status-html', 'done ✓', true);
-
-      const fullHTML = chunks.join('');
-
-      // Small delay so the user sees the "done ✓" state
-      await new Promise(res => setTimeout(res, 300));
-
-      document.open();
-      document.write(fullHTML);
-      document.close();
-    }
-
-    loadMergedHTML().catch(err => {
-      document.getElementById('loader-screen').innerHTML =
-        `<h1 style="color:#ff4444">Failed to load.<br><small style="font-size:1rem;letter-spacing:normal">${err.message}</small></h1>`;
-    });
-  </script>
-
-</body>
+		</canvas>
+	</body>
 </html>
