@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PvZ Portable — Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
+  <style>
+    /* ----- GLOBAL RESET & BASE ----- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* LOADER SCREEN — Centered Layout */
+    #upload-screen {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      text-align: center;
+      padding: 2em;
+    }
+
+    /* Heading — Adjusted slightly smaller */
+    #upload-screen h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      animation: rainbow-pulse 2s ease-in-out infinite;
+    }
+
+    .link {
+      color: #F5A9B8;
+      font-size: 1.3rem;
+      margin-bottom: 24px;
+      font-weight: 400;
+      transition: opacity 0.2s;
+    }
+    .link:hover { opacity: 0.8; }
+
+    @keyframes rainbow-pulse {
+      0% { color: #ff0000; transform: scale(1); }
+      16.66% { color: #ff8800; transform: scale(1.05); }
+      33.33% { color: #ffff00; transform: scale(1); }
+      50% { color: #00ff00; transform: scale(1.05); }
+      66.66% { color: #0088ff; transform: scale(1); }
+      83.33% { color: #8800ff; transform: scale(1.05); }
+      100% { color: #ff0000; transform: scale(1); }
+    }
+
+    #gif {
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    /* Resource wrapper */
+    #server-load-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4em;
+      margin: 0.5em 0;
+    }
+
+    /* File rows — Adjusted slightly smaller */
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1rem;
+      margin: 2px 0;
+      justify-content: center;
+    }
+    .file-name  { color: #F5A9B8; font-weight: 600; white-space: nowrap; }
+    .file-status {
+      color: #5BCEFA;
+      white-space: nowrap;
+    }
+    .file-status.pending { color: #888; }
+    .file-status.done { color: #00e676; }
+    .file-status.error { color: #ff5555; }
+
+    #resources-ready-msg {
+      display: none;
+      color: #00e676;
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-top: 15px;
+    }
+
+    #loading-drop-zone {
+      display: none;
+      font-size: 0.85em;
+      color: #ffeb3b;
+      margin-top: 10px;
+    }
+
+    /* ── GAME CANVAS CONTAINER ── */
+    #canvas-container {
+      display: none;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      z-index: 10;
+    }
+    canvas#canvas {
+      display: block;
+      background: #000;
+      outline: 0;
+      box-shadow: 0 0 0 2px #2a2a2a;
+    }
+
+    /* In-game Toolbar */
+    #save-toolbar {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 20;
+    }
+    #save-toolbar button {
+      background: rgba(0,0,0,0.8);
+      color: #F5A9B8;
+      border: 1px solid #F5A9B8;
+      border-radius: 6px;
+      padding: 0.5em 1em;
+      font-family: inherit;
+      font-size: 1rem;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: all 0.2s;
+    }
+    #save-toolbar button:hover {
+      background: #F5A9B8;
+      color: #000;
+    }
+
+    @media (max-width: 600px) {
+      #upload-screen h1 { font-size: 1.8rem; }
+      .link { font-size: 1.1rem; }
+      .file-row { font-size: 0.85rem; }
+      #gif { width: 140px; height: 140px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="upload-screen">
+  <h1>loading... :3</h1>
+  <a href="https://wavelength-8vk.pages.dev" target="_blank" class="link">~ wavelength! ~</a>
+  
+  <img id="gif" src="./pvz.gif" alt="pvz">
+  
+  <div id="server-load-wrap">
+    </div>
+
+  <p id="resources-ready-msg">all resources ready ✓</p>
+  <div id="loading-drop-zone"></div>
+</div>
+
+<div id="canvas-container">
+  <div id="save-toolbar">
+    <button id="save-export-btn">Export Saves</button>
+    <button id="save-import-btn">Import Saves (ZIP)</button>
+  </div>
+  <canvas id="canvas" width="800" height="600" tabindex="0"></canvas>
+</div>
+
+<textarea id="pvz-soft-keyboard" style="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+<input id="ingame-save-import-input" type="file" style="display:none" accept=".zip">
+
+<script>
+/* ----- EMSCRIPTEN CONFIG ----- */
+window.moduleReadyPromise = new Promise((n, e) => { 
+  window._resolveModuleReady = n; 
+  window._rejectModuleReady = e; 
+});
+
+var Module = {
+  canvas: document.getElementById("canvas"),
+  noInitialRun: true,
+  onRuntimeInitialized: function() { window._resolveModuleReady(); },
+  onAbort: function(n) { window._rejectModuleReady(new Error(n)); },
+  print: function(n) { console.log(n); },
+  printErr: function(n) { console.warn(n); }
+};
+</script>
+<script src="pvz-portable.js" async></script>
+
+<script>
+"use strict";
+
+/* ----- RESOURCE CONFIG ----- */
+const PAK_PARTS = ["main.pak.part0", "main.pak.part1", "main.pak.part2"];
+const PROPERTIES_FILES = [
+  "properties/Layout.xml", "properties/default.xml", "properties/partner.xml",
+  "properties/partner.xml.sig", "properties/partner_logo.jpg"
+];
+
+const collectedFiles = new Map();
+let savesMounted = false;
+let gameStarted = false;
+let saveSyncIntervalId = null;
+let saveSyncInFlight = null;
+let saveSyncQueued = false;
+let lastSaveSyncAt = 0;
+let saveFsReadyPromise = null;
+let allResourcesReady = false;
+let runtimeReloadScheduled = false;
+let wasmReady = false;
+let autoStartTriggered = false;
+
+const serverLoadWrap    = document.getElementById("server-load-wrap");
+const loadStatus        = document.getElementById("loading-drop-zone");
+const resourcesReadyMsg = document.getElementById("resources-ready-msg");
+const uploadScreen      = document.getElementById("upload-screen");
+const canvasContainer   = document.getElementById("canvas-container");
+
+const ingameExportBtn = document.getElementById("save-export-btn");
+const ingameImportBtn = document.getElementById("save-import-btn");
+const ingameFileInput = document.getElementById("ingame-save-import-input");
+
+/* ----- UI HELPERS ----- */
+function makeFileRow(label) {
+  const row = document.createElement("div");
+  row.className = "file-row";
+  const nameEl = document.createElement("span");
+  nameEl.className = "file-name";
+  nameEl.textContent = label + ":";
+  const statusEl = document.createElement("span");
+  statusEl.className = "file-status pending";
+  statusEl.textContent = "waiting...";
+  row.appendChild(nameEl);
+  row.appendChild(statusEl);
+  serverLoadWrap.appendChild(row);
+
+  return {
+    setProgress(pct) { 
+      statusEl.textContent = "loading... " + Math.round(pct) + "%"; 
+      statusEl.classList.remove("pending");
+    },
+    setDone() {
+      statusEl.textContent = "done ✓";
+      statusEl.classList.add("done");
+      statusEl.classList.remove("pending");
+    },
+    setError(msg) {
+      statusEl.textContent = "✗ error";
+      statusEl.classList.add("error");
+      console.error(msg);
+    }
+  };
+}
+
+/* ----- FETCH ENGINE ----- */
+async function fetchWithProgress(url, onProgress) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error("HTTP " + resp.status + " for " + url);
+  const total = parseInt(resp.headers.get("content-length") || "0", 10);
+  const reader = resp.body.getReader();
+  const chunks = []; 
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); 
+    received += value.length;
+    if (total > 0) onProgress(received / total * 100);
+  }
+
+  const out = new Uint8Array(received); 
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out.buffer;
+}
+
+async function fetchPak() {
+  const row = makeFileRow("main.pak");
+  try {
+    const buffers = [];
+    for (let i = 0; i < PAK_PARTS.length; i++) {
+      const buf = await fetchWithProgress(PAK_PARTS[i], pct => {
+        const stepProgress = (i / PAK_PARTS.length) * 100 + (pct / PAK_PARTS.length);
+        row.setProgress(stepProgress);
+      });
+      buffers.push(buf);
+    }
+    const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+    const merged = new Uint8Array(total); 
+    let off = 0;
+    for (const b of buffers) { merged.set(new Uint8Array(b), off); off += b.byteLength; }
+    collectedFiles.set("main.pak", new File([merged], "main.pak", { type: "application/octet-stream" }));
+    row.setDone();
+  } catch(e) { row.setError(e.message); throw e; }
+}
+
+async function fetchProperties() {
+  const promises = PROPERTIES_FILES.map(async path => {
+    const row = makeFileRow(path.split("/").pop());
+    try {
+      const buf = await fetchWithProgress(path, pct => row.setProgress(pct));
+      collectedFiles.set(path, new File([buf], path.split("/").pop(), { type: "application/octet-stream" }));
+      row.setDone();
+    } catch(e) { row.setError(e.message); throw e; }
+  });
+  await Promise.all(promises);
+}
+
+async function fetchAllResources() {
+  try {
+    await Promise.all([fetchPak(), fetchProperties()]);
+    allResourcesReady = true;
+    resourcesReadyMsg.style.display = "block";
+    tryAutoStart();
+  } catch(e) {
+    loadStatus.textContent = "⚠ Load Failed: " + e.message;
+    loadStatus.style.display = "block";
+  }
+}
+
+/* ----- SAVE & FS ENGINE ----- */
+function canSyncSaves() { return savesMounted && Module.FS && typeof Module.FS.syncfs === "function"; }
+
+async function ensureSaveFsReady() {
+  if (saveFsReadyPromise) return saveFsReadyPromise;
+  saveFsReadyPromise = (async () => {
+    await window.moduleReadyPromise;
+    try { Module.FS.mkdir("/saves"); } catch(e) {}
+    try { Module.FS.mount(Module.FS.filesystems.IDBFS, {}, "/saves"); } catch(e) { console.warn("Mount failed:", e); }
+    savesMounted = true;
+    await new Promise(r => Module.FS.syncfs(true, err => { if(err) console.error(err); r(); }));
+    lastSaveSyncAt = Date.now();
+  })();
+  return saveFsReadyPromise;
+}
+
+async function syncSaves() {
+  if (!canSyncSaves()) return;
+  if (saveSyncInFlight) { saveSyncQueued = true; return saveSyncInFlight; }
+  saveSyncInFlight = new Promise(r => Module.FS.syncfs(false, err => {
+    if(!err) lastSaveSyncAt = Date.now();
+    r();
+  }));
+  try { await saveSyncInFlight; } finally {
+    saveSyncInFlight = null;
+    if (saveSyncQueued) { saveSyncQueued = false; syncSaves(); }
+  }
+}
+
+function startSaveAutosync() { 
+  if (saveSyncIntervalId === null) saveSyncIntervalId = setInterval(syncSaves, 5000); 
+}
+
+/* ----- CANVAS HANDLERS ----- */
+function resizeCanvas() {
+  const c = document.getElementById("canvas");
+  const ct = canvasContainer;
+  if (!c || !ct) return;
+  const s = Math.min(ct.clientWidth / c.width, ct.clientHeight / c.height);
+  c.style.width = Math.floor(c.width * s) + "px";
+  c.style.height = Math.floor(c.height * s) + "px";
+}
+
+/* ----- GAME LIFECYCLE ----- */
+function tryAutoStart() {
+  if (autoStartTriggered || !allResourcesReady || !wasmReady) return;
+  autoStartTriggered = true;
+  startGame();
+}
+
+async function startGame() {
+  if (gameStarted) return;
+  loadStatus.textContent = "Preparing runtime...";
+  loadStatus.style.display = "block";
+
+  try {
+    await window.moduleReadyPromise;
+    
+    // Write resources to Virtual FS
+    for (const [path, file] of collectedFiles.entries()) {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const parts = path.split("/");
+      let dir = "/";
+      for (let d = 0; d < parts.length - 1; d++) {
+        dir += (dir === "/" ? "" : "/") + parts[d];
+        try { Module.FS.mkdir(dir); } catch(e) {}
+      }
+      Module.FS.writeFile("/" + path, data);
+    }
+
+    await ensureSaveFsReady();
+
+    // UI Transition
+    uploadScreen.style.display = "none";
+    canvasContainer.style.display = "flex";
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    gameStarted = true;
+    startSaveAutosync();
+    Module.callMain([]);
+  } catch(e) {
+    console.error("Launch error:", e);
+    loadStatus.textContent = "Error: " + e.message;
+    autoStartTriggered = false;
+  }
+}
+
+/* ----- CORE SAVE ACTIONS ----- */
+function collectSaveFiles(baseDir) {
+  const results = [];
+  let items;
+  try { items = Module.FS.readdir(baseDir); } catch(e) { return results; }
+  for (const name of items) {
+    if (name === "." || name === "..") continue;
+    const fullPath = baseDir + "/" + name;
+    const st = Module.FS.stat(fullPath);
+    if (Module.FS.isDir(st.mode)) {
+      results.push(...collectSaveFiles(fullPath));
+    } else {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+async function exportSaves(btn) {
+  if (!gameStarted) return;
+  const original = btn.textContent;
+  btn.textContent = "Exporting...";
+  btn.disabled = true;
+
+  try {
+    await syncSaves();
+    const files = collectSaveFiles("/saves/userdata");
+    if (!files.length) { alert("No saves found."); return; }
+
+    const zip = new JSZip();
+    for (const path of files) {
+      const content = Module.FS.readFile(path);
+      zip.file(path.replace(/^\/saves\//, ""), content);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "pvz-portable-saves.zip";
+    a.click();
+  } catch(e) { alert("Export failed: " + e.message); }
+  finally { btn.textContent = original; btn.disabled = false; }
+}
+
+async function importSaves(zipFile, btn) {
+  const original = btn.textContent;
+  btn.textContent = "Importing...";
+  btn.disabled = true;
+
+  try {
+    const zip = await JSZip.loadAsync(zipFile);
+    for (const relPath in zip.files) {
+      if (zip.files[relPath].dir) continue;
+      
+      let target = relPath;
+      if (!target.startsWith("userdata/")) target = "userdata/" + target;
+      const fullDest = "/saves/" + target;
+      
+      // Ensure folder exists
+      const parts = fullDest.split("/");
+      let curr = "";
+      for (let i = 1; i < parts.length - 1; i++) {
+        curr += "/" + parts[i];
+        try { Module.FS.mkdir(curr); } catch(e) {}
+      }
+
+      const data = await zip.files[relPath].async("uint8array");
+      Module.FS.writeFile(fullDest, data);
+    }
+    await syncSaves();
+    alert("Import successful! Reload recommended.");
+  } catch(e) { alert("Import failed: " + e.message); }
+  finally { btn.textContent = original; btn.disabled = false; }
+}
+
+/* ----- EVENT BINDING ----- */
+window.moduleReadyPromise.then(() => { wasmReady = true; tryAutoStart(); });
+fetchAllResources();
+
+ingameExportBtn.addEventListener("click", () => exportSaves(ingameExportBtn));
+ingameImportBtn.addEventListener("click", () => ingameFileInput.click());
+ingameFileInput.addEventListener("change", e => {
+  if (e.target.files[0]) importSaves(e.target.files[0], ingameImportBtn);
+  e.target.value = "";
+});
+
+// Sync on exit
+window.addEventListener("pagehide", syncSaves);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") syncSaves(); });
+
+window.onGameExit = function() {
+  syncSaves().then(() => window.location.reload());
+};
+</script>
+</body>
+</html>

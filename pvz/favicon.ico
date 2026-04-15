@@ -1,0 +1,317 @@
+<!doctypehtml><html lang=en><head><meta charset=utf-8><meta content="width=device-width,initial-scale=1"name=viewport><title>PvZ Portable — Web</title><script src=https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js></script><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#1a1a2e;color:#eee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}body.upload-mode{display:flex;flex-direction:column;align-items:stretch;justify-content:center;overflow-x:hidden;overflow-y:auto}body.game-mode{overflow:hidden}#upload-screen{text-align:center;padding:2em 1.25em;max-width:600px;width:min(600px,100%);min-height:100vh;margin:0 auto;display:flex;flex-direction:column;justify-content:center}#upload-screen h1{font-size:1.8em;margin-bottom:.35em;color:#4ecca3}#upload-screen h1 a{color:inherit;text-decoration:none}#upload-screen h1 a:hover{text-decoration:underline}#project-links{display:flex;flex-wrap:wrap;justify-content:center;gap:.9em;font-size:.9em;margin-bottom:.75em}#project-links a{color:#4ecca3;text-decoration:underline}#upload-screen p{margin:.5em 0;line-height:1.5;color:#bbb}#upload-screen .note{font-size:.85em;color:#888;margin-top:1em}#drop-zone{border:2px dashed #4ecca3;border-radius:12px;padding:2em;margin:1.5em 0;transition:background .3s,border-color .3s,transform .2s}#drop-zone.ready{border-style:solid;border-color:#4ecca3;background:rgba(78,204,163,.08);cursor:pointer}#drop-zone.ready:hover{background:rgba(78,204,163,.18);transform:translateY(-1px)}#drop-zone-ready-title{display:none;font-size:1.35em;font-weight:700;color:#4ecca3;margin:.3em 0}#drop-zone-ready-subtitle{display:none;font-size:.85em;color:#bbb;margin:.2em 0 .6em}#drop-zone.ready #drop-zone-ready-subtitle,#drop-zone.ready #drop-zone-ready-title{display:block}#drop-zone.loading #loading-drop-zone{display:block}#loading-drop-zone{display:none;margin-top:.6em;color:#4ecca3;font-size:.9em}#loading-drop-zone.has-error{display:block;color:#e74c3c}#server-load-wrap{padding:.5em 0}#server-load-wrap p{font-size:.85em;color:#888;margin:.3em 0}#upload-save-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:.6em;margin-top:.75em}#upload-save-actions button{background:#2b2b40;color:#4ecca3;border:1px solid #4ecca3;border-radius:8px;padding:.6em 1em;cursor:pointer}#upload-save-actions button:hover{background:rgba(78,204,163,.12)}#upload-save-actions button:disabled{opacity:.4;cursor:default}#canvas-container{display:none;width:100vw;height:100vh;position:fixed;inset:0;justify-content:center;align-items:center;background:#000;overflow:hidden}canvas#canvas{display:block;background:#000;outline:0}#pvz-soft-keyboard{position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;resize:none;pointer-events:none;font-size:16px}#save-toolbar{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:10;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 16px)}#save-toolbar button{background:rgba(30,30,50,.75);color:#4ecca3;border:1px solid #4ecca3;border-radius:6px;padding:.35em .8em;font-size:.85em;cursor:pointer;backdrop-filter:blur(4px);transition:background .2s}#save-toolbar button:hover{background:rgba(78,204,163,.2)}#save-toolbar button:disabled{opacity:.4;cursor:default}
+.fetch-row{display:flex;align-items:center;gap:.6em;margin:.3em 0;font-size:.82em}
+.fetch-label{color:#aaa;flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fetch-bar-wrap{flex:2;background:rgba(78,204,163,.12);border-radius:4px;height:6px;overflow:hidden}
+.fetch-bar{height:100%;width:0%;background:#4ecca3;border-radius:4px;transition:width .2s}
+.fetch-status{width:3.5em;text-align:right;color:#4ecca3;font-size:.9em}
+.fetch-status.err{color:#e74c3c}
+#resources-ready-msg{display:none;color:#4ecca3;font-size:.9em;margin-top:.6em}
+#launch-btn{display:none;margin:1.2em auto 0;background:#4ecca3;color:#1a1a2e;border:none;border-radius:10px;padding:.75em 2.5em;font-size:1.05em;font-weight:700;cursor:pointer;transition:opacity .2s,transform .15s}
+#launch-btn:hover{opacity:.88;transform:translateY(-1px)}
+#launch-btn:disabled{opacity:.4;cursor:default}
+@media(max-height:760px),(max-width:640px){body.upload-mode{justify-content:flex-start}#upload-screen{padding:1.25em 1em 2em;justify-content:flex-start}#drop-zone{padding:1.25em;margin:1em 0}}</style></head>
+<body class=upload-mode>
+<div id=upload-screen>
+  <h1><a href=https://github.com/wszqkzqk/PvZ-Portable target=_blank rel="noopener noreferrer">PvZ Portable | Play Anywhere</a></h1>
+  <p id=project-links><a href=https://github.com/wszqkzqk/PvZ-Portable target=_blank rel="noopener noreferrer">GitHub</a> <a href=https://github.com/wszqkzqk/PvZ-Portable/issues target=_blank rel="noopener noreferrer">Issues</a> <a href=https://github.com/wszqkzqk/PvZ-Portable/releases target=_blank rel="noopener noreferrer">Releases</a></p>
+  <p>Community-driven re-implementation for <strong>all desktop, mobile, and web</strong>.</p>
+  <p style="font-size:.85em;color:#888;font-style:italic;line-height:1.4;margin:.75em auto">Disclaimer: Community-driven engine re-implementation. Not affiliated with, authorized, or endorsed by PopCap Games or Electronic Arts.</p>
+
+  <div id=drop-zone>
+    <!-- server fetch progress rows, injected by JS -->
+    <div id=server-load-wrap></div>
+    <p id=resources-ready-msg>All resources ready</p>
+    <p id=drop-zone-ready-title>Start Game</p>
+    <p id=drop-zone-ready-subtitle>Click here to launch!</p>
+    <div id=loading-drop-zone></div>
+  </div>
+
+  <button id=launch-btn>Play Now</button>
+
+  <div id=upload-save-actions>
+    <button id=upload-save-import-btn title="Import saves from ZIP">Import Save ZIP</button>
+    <button id=upload-save-import-dir-btn title="Import saves from folder">Import Save Folder</button>
+    <button id=upload-save-clear-btn title="Delete all saves from this browser">Clear Browser Saves</button>
+  </div>
+  <input id=upload-save-import-input type=file style=display:none accept=.zip>
+  <input id=upload-save-import-dir-input type=file style=display:none multiple webkitdirectory>
+
+  <p class=note>All game resources are fetched directly from the server — nothing is uploaded. Saves are stored locally via IndexedDB and can be exported at any time.</p>
+  <p class=note>Starting the game indicates you have read the notices above and acknowledge the no-warranty terms of the LGPL v3.0-or-later license for this code.</p>
+  <p class=note>Copyright (C) 2026 Zhou Qiankang &lt;<a href=mailto:wszqkzqk@qq.com style=color:#4ecca3;text-decoration:underline>wszqkzqk@qq.com</a>></p>
+</div>
+
+<div id=canvas-container>
+  <div id=save-toolbar><button id=save-export-btn title="Export saves as ZIP">Export Saves</button></div>
+  <canvas height=600 id=canvas tabindex=0 width=800></canvas>
+</div>
+<textarea autocapitalize=off autocomplete=off autocorrect=off enterkeyhint=done id=pvz-soft-keyboard spellcheck=false></textarea>
+
+<script>
+window.moduleReadyPromise=new Promise((function(n,e){window._resolveModuleReady=n,window._rejectModuleReady=e}));
+var Module={canvas:document.getElementById("canvas"),noInitialRun:!0,onRuntimeInitialized:function(){window._resolveModuleReady()},onAbort:function(n){window._rejectModuleReady(new Error(n))},print:function(n){console.log(n)},printErr:function(n){console.warn(n)}};
+</script>
+<script src=pvz-portable.js async></script>
+<script>"use strict";
+
+// ─── Server resource config ────────────────────────────────────────────────
+// main.pak split parts (0-indexed)
+const PAK_PARTS = [
+  "main.pak.part0",
+  "main.pak.part1",
+  "main.pak.part2"
+];
+
+// properties/ files served individually at these paths
+const PROPERTIES_FILES = [
+  "properties/Layout.xml",
+  "properties/default.xml",
+  "properties/partner.xml",
+  "properties/partner.xml.sig",
+  "properties/partner_logo.jpg"
+];
+// ──────────────────────────────────────────────────────────────────────────
+
+const collectedFiles = new Map();
+let savesMounted=!1,gameStarted=!1,saveSyncIntervalId=null,saveSyncInFlight=null,saveSyncQueued=!1,lastSaveSyncAt=0,saveFsReadyPromise=null;
+let allResourcesReady = false;
+let runtimeReloadScheduled = false;
+
+const dropZone        = document.getElementById("drop-zone");
+const serverLoadWrap  = document.getElementById("server-load-wrap");
+const loadStatus      = document.getElementById("loading-drop-zone");
+const resourcesReadyMsg = document.getElementById("resources-ready-msg");
+const launchBtn       = document.getElementById("launch-btn");
+const uploadSaveImportBtn    = document.getElementById("upload-save-import-btn");
+const uploadSaveImportDirBtn = document.getElementById("upload-save-import-dir-btn");
+const uploadSaveClearBtn     = document.getElementById("upload-save-clear-btn");
+const uploadSaveImportInput    = document.getElementById("upload-save-import-input");
+const uploadSaveImportDirInput = document.getElementById("upload-save-import-dir-input");
+
+// ─── Progress row UI helpers ───────────────────────────────────────────────
+function makeProgressRow(label) {
+  const row = document.createElement("div");
+  row.className = "fetch-row";
+  row.innerHTML = `<span class="fetch-label">${label}</span><div class="fetch-bar-wrap"><div class="fetch-bar"></div></div><span class="fetch-status">0%</span>`;
+  serverLoadWrap.appendChild(row);
+  return {
+    setProgress(pct) {
+      row.querySelector(".fetch-bar").style.width = pct + "%";
+      row.querySelector(".fetch-status").textContent = Math.round(pct) + "%";
+    },
+    setDone(sizeBytes) {
+      row.querySelector(".fetch-bar").style.width = "100%";
+      row.querySelector(".fetch-status").textContent = sizeBytes != null
+        ? (sizeBytes / 1048576).toFixed(1) + " MB"
+        : "✓";
+    },
+    setError(msg) {
+      row.querySelector(".fetch-bar").style.background = "#e74c3c";
+      const s = row.querySelector(".fetch-status");
+      s.textContent = "✗";
+      s.classList.add("err");
+      row.title = msg;
+    }
+  };
+}
+
+// ─── Fetch a single URL with progress, return ArrayBuffer ─────────────────
+async function fetchWithProgress(url, onProgress) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+  const total = parseInt(resp.headers.get("content-length") || "0", 10);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total > 0) onProgress(received / total * 100);
+  }
+  const out = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out.buffer;
+}
+
+// ─── Fetch & merge main.pak from split parts ──────────────────────────────
+async function fetchPak() {
+  const row = makeProgressRow("main.pak");
+  try {
+    const buffers = [];
+    for (let i = 0; i < PAK_PARTS.length; i++) {
+      const partLabel = `main.pak (part ${i + 1}/${PAK_PARTS.length})`;
+      // update label for current part
+      row.setProgress((i / PAK_PARTS.length) * 100);
+      const buf = await fetchWithProgress(PAK_PARTS[i], pct => {
+        row.setProgress((i / PAK_PARTS.length) * 100 + pct / PAK_PARTS.length);
+      });
+      buffers.push(buf);
+    }
+    const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+    const merged = new Uint8Array(total);
+    let off = 0;
+    for (const b of buffers) { merged.set(new Uint8Array(b), off); off += b.byteLength; }
+    const file = new File([merged], "main.pak", { type: "application/octet-stream" });
+    collectedFiles.set("main.pak", file);
+    row.setDone(total);
+  } catch(e) {
+    row.setError(e.message);
+    throw e;
+  }
+}
+
+// ─── Fetch properties/ files individually ─────────────────────────────────
+async function fetchProperties() {
+  const promises = PROPERTIES_FILES.map(async path => {
+    const filename = path.split("/").pop();
+    const row = makeProgressRow(path);
+    try {
+      const buf = await fetchWithProgress(path, pct => row.setProgress(pct));
+      const file = new File([buf], filename, { type: "application/octet-stream" });
+      collectedFiles.set(path, file);
+      row.setDone(buf.byteLength);
+    } catch(e) {
+      row.setError(e.message);
+      throw e;
+    }
+  });
+  await Promise.all(promises);
+}
+
+// ─── Kick off all server fetches in parallel ──────────────────────────────
+async function fetchAllResources() {
+  try {
+    await Promise.all([fetchPak(), fetchProperties()]);
+    allResourcesReady = true;
+    resourcesReadyMsg.style.display = "block";
+    dropZone.classList.add("ready");
+    dropZone.setAttribute("tabindex","0");
+    dropZone.setAttribute("role","button");
+    dropZone.setAttribute("aria-label","Start Game");
+    launchBtn.style.display = "block";
+  } catch(e) {
+    loadStatus.textContent = "⚠ Failed to load resources from server: " + e.message;
+    loadStatus.classList.add("has-error");
+    loadStatus.style.display = "block";
+  }
+}
+
+fetchAllResources();
+
+// ─── Save FS helpers ───────────────────────────────────────────────────────
+function canSyncSaves(){return savesMounted&&Module.FS&&"function"==typeof Module.FS.syncfs}
+async function ensureSaveFsReady(){return saveFsReadyPromise||(saveFsReadyPromise=(async()=>{await window.moduleReadyPromise;try{Module.FS.mkdir("/saves")}catch(e){}try{Module.FS.mount(Module.FS.filesystems.IDBFS,{},"/saves")}catch(e){}savesMounted=!0,await new Promise((e=>Module.FS.syncfs(!0,(t=>{t&&console.warn("IDBFS initial sync error:",t),e()})))),lastSaveSyncAt=Date.now()})(),saveFsReadyPromise)}
+async function syncSaves(){if(canSyncSaves()){if(saveSyncInFlight)return saveSyncQueued=!0,saveSyncInFlight;saveSyncInFlight=new Promise((e=>Module.FS.syncfs(!1,(t=>{t?console.warn("IDBFS persist error:",t):lastSaveSyncAt=Date.now(),e()}))));try{await saveSyncInFlight}finally{saveSyncInFlight=null,saveSyncQueued&&(saveSyncQueued=!1,syncSaves())}}}
+function startSaveAutosync(){null===saveSyncIntervalId&&(saveSyncIntervalId=window.setInterval(syncSaves,5e3))}
+
+// ─── Game launch ───────────────────────────────────────────────────────────
+function resizeCanvas(){const e=document.getElementById("canvas"),t=document.getElementById("canvas-container"),n=t.clientWidth,a=t.clientHeight,o=Math.min(n/e.width,a/e.height);e.style.width=Math.floor(e.width*o)+"px",e.style.height=Math.floor(e.height*o)+"px"}
+
+async function startGame() {
+  if (!allResourcesReady) return;
+  dropZone.classList.remove("ready");
+  dropZone.classList.add("loading");
+  dropZone.style.pointerEvents = "none";
+  launchBtn.disabled = true;
+  loadStatus.style.display = "block";
+  loadStatus.classList.remove("has-error");
+  try {
+    loadStatus.textContent = "Preparing WebAssembly runtime…";
+    await window.moduleReadyPromise;
+    const entries = Array.from(collectedFiles.entries());
+    let written = 0;
+    const totalBytes = entries.reduce((s,[,f]) => s + f.size, 0);
+    for (let i = 0; i < entries.length; i++) {
+      const [path, file] = entries[i];
+      loadStatus.textContent = `Writing resources… ${i+1}/${entries.length}, ${(written/1048576).toFixed(1)}/${(totalBytes/1048576).toFixed(1)} MiB`;
+      const data = new Uint8Array(await file.arrayBuffer());
+      const parts = path.split("/");
+      let dir = "/";
+      for (let d = 0; d < parts.length - 1; d++) {
+        dir += (dir === "/" ? "" : "/") + parts[d];
+        try { Module.FS.mkdir(dir); } catch(e) {}
+      }
+      Module.FS.writeFile("/" + path, data);
+      written += file.size;
+      if ((i+1) % 4 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    loadStatus.textContent = "Restoring saved data…";
+    await ensureSaveFsReady();
+    document.body.classList.remove("upload-mode");
+    document.body.classList.add("game-mode");
+    document.getElementById("upload-screen").style.display = "none";
+    document.getElementById("canvas-container").style.display = "flex";
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    loadStatus.style.display = "none";
+    gameStarted = true;
+    lastSaveSyncAt = Date.now();
+    startSaveAutosync();
+    Module.callMain([]);
+  } catch(e) {
+    console.error("Failed to start game:", e);
+    loadStatus.textContent = "Error: " + (e.message || e);
+    loadStatus.classList.add("has-error");
+    document.getElementById("canvas-container").style.display = "none";
+    document.getElementById("upload-screen").style.display = "";
+    document.body.classList.remove("game-mode");
+    document.body.classList.add("upload-mode");
+    dropZone.classList.remove("loading");
+    dropZone.classList.add("ready");
+    dropZone.style.pointerEvents = "";
+    launchBtn.disabled = false;
+  }
+}
+
+dropZone.addEventListener("click", e => {
+  if (dropZone.classList.contains("ready") && !e.target.closest("#server-load-wrap")) startGame();
+});
+dropZone.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && dropZone.classList.contains("ready")) { e.preventDefault(); startGame(); }
+});
+launchBtn.addEventListener("click", startGame);
+window.addEventListener("fullscreenchange", resizeCanvas);
+
+// ─── Save management ───────────────────────────────────────────────────────
+function collectSaveFiles(e){const t=[];let n;try{n=Module.FS.readdir(e)}catch(e){return t}for(const a of n){if("."===a||".."===a)continue;const n=e+"/"+a,o=Module.FS.stat(n);Module.FS.isDir(o.mode)?t.push(...collectSaveFiles(n)):t.push(n)}return t}
+
+async function exportSaves(){const e=document.getElementById("save-export-btn");e.disabled=!0,e.textContent="⏳ Exporting…";try{await ensureSaveFsReady(),await syncSaves();const e=collectSaveFiles("/saves/userdata");if(0===e.length)return void alert("No save data found.");const t=new JSZip;for(const n of e)t.file(n.replace(/^\/saves\//,""),Module.FS.readFile(n));const n=await t.generateAsync({type:"blob"}),a=document.createElement("a");a.href=URL.createObjectURL(n),a.download="pvz-portable-savedata.zip",a.click(),URL.revokeObjectURL(a.href)}catch(e){console.error("Export failed:",e),alert("Export failed: "+e.message)}finally{e.disabled=!1,e.textContent="💾 Export Saves"}}
+
+function normalizeSaveImportPath(e){const t=e.replace(/\\/g,"/").replace(/^\/+/,"").split("/").filter(Boolean);if(0===t.length)return"";const n=t.indexOf("userdata");return n>=0?t.slice(n+1).join("/"):t.length>1?t.slice(1).join("/"):t[0]}
+
+async function importSaves(e,t){await ensureSaveFsReady(),t.disabled=!0;const n=t.textContent;t.textContent="⏳ Importing…";try{const t=await JSZip.loadAsync(e),n=Object.keys(t.files).filter((e=>!t.files[e].dir));for(const e of n){let n=e;n.startsWith("userdata/")||(n="userdata/"+n);const a="/saves/"+n,o=a.split("/");let s="";for(let e=1;e<o.length-1;e++){s+="/"+o[e];try{Module.FS.mkdir(s)}catch(e){}}const r=await t.files[e].async("uint8array");Module.FS.writeFile(a,r)}await syncSaves()}catch(e){console.error("Import failed:",e),alert("Import failed: "+e.message)}finally{t.disabled=!1,t.textContent=n}}
+
+async function importSaveDirectory(e,t){await ensureSaveFsReady(),t.disabled=!0;const n=t.textContent;t.textContent="⏳ Importing…";try{for(const t of e){const e=normalizeSaveImportPath(t.webkitRelativePath||t.name);if(!e)continue;const n="/saves/userdata/"+e,a=n.split("/");let o="";for(let e=1;e<a.length-1;e++){o+="/"+a[e];try{Module.FS.mkdir(o)}catch(e){}}const s=new Uint8Array(await t.arrayBuffer());Module.FS.writeFile(n,s)}await syncSaves()}catch(e){console.error("Save folder import failed:",e),alert("Save folder import failed: "+e.message)}finally{t.disabled=!1,t.textContent=n}}
+
+async function clearSaves(e){if(await ensureSaveFsReady(),!confirm("This will permanently delete ALL save data from your browser.\nThis cannot be undone. Continue?"))return;e.disabled=!0;const t=e.textContent;e.textContent="⏳ Clearing…";try{const n=collectSaveFiles("/saves");for(const o of n)try{Module.FS.unlink(o)}catch(s){}function a(e){let t;try{t=Module.FS.readdir(e)}catch(e){return}for(const n of t){if("."===n||".."===n)continue;const t=e+"/"+n;try{const e=Module.FS.stat(t);Module.FS.isDir(e.mode)&&a(t)}catch(e){}}if("/saves"!==e)try{Module.FS.rmdir(e)}catch(e){}}a("/saves"),await syncSaves(),alert("All save data has been cleared.")}catch(r){console.error("Clear failed:",r),alert("Clear failed: "+r.message)}finally{e.disabled=!1,e.textContent=t}}
+
+document.getElementById("save-export-btn").addEventListener("click", exportSaves);
+uploadSaveImportBtn.addEventListener("click", () => uploadSaveImportInput.click());
+uploadSaveImportInput.addEventListener("change", e => { const f=e.target.files[0]; f&&importSaves(f,uploadSaveImportBtn); e.target.value=""; });
+uploadSaveImportDirBtn.addEventListener("click", () => uploadSaveImportDirInput.click());
+uploadSaveImportDirInput.addEventListener("change", async e => { const f=e.target.files; f&&f.length>0&&await importSaveDirectory(f,uploadSaveImportDirBtn); e.target.value=""; });
+uploadSaveClearBtn.addEventListener("click", () => clearSaves(uploadSaveClearBtn));
+
+document.addEventListener("visibilitychange", () => { if(document.visibilityState==="hidden") syncSaves(); });
+window.addEventListener("pagehide", syncSaves);
+window.addEventListener("beforeunload", e => { gameStarted&&(syncSaves(),Date.now()-lastSaveSyncAt>=7e3&&(e.preventDefault(),e.returnValue="Recent save data may still be syncing. Wait a moment or export saves before leaving.")); });
+
+window.onGameExit = function(){
+  gameStarted=!1;
+  if(saveSyncIntervalId!==null){clearInterval(saveSyncIntervalId);saveSyncIntervalId=null;}
+  document.fullscreenElement&&document.exitFullscreen().catch(()=>{});
+  document.getElementById("canvas-container").style.display="none";
+  document.getElementById("upload-screen").style.display="";
+  document.body.classList.remove("game-mode");
+  document.body.classList.add("upload-mode");
+  window.removeEventListener("resize",resizeCanvas);
+  dropZone.classList.remove("loading");
+  dropZone.style.pointerEvents="";
+  loadStatus.style.display="none";
+  launchBtn.disabled=false;
+  if(!runtimeReloadScheduled){runtimeReloadScheduled=!0;loadStatus.textContent="Resetting WebAssembly runtime…";loadStatus.classList.remove("has-error");loadStatus.style.display="block";window.setTimeout(()=>window.location.reload(),0);}
+};
+</script></body></html>
