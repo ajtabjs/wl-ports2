@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity WebGL Player | Traverse</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        background: #000;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #unity-canvas {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+      }
+
+      #loader-screen {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Figtree', Arial, sans-serif;
+        z-index: 999;
+      }
+
+      #loader-screen h1 {
+        color: #fff;
+        font-size: 2rem;
+        margin-bottom: 24px;
+        letter-spacing: 0.05em;
+        animation: rainbow-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes rainbow-pulse {
+        0% { color: #ff0000; transform: scale(1); }
+        16.66% { color: #ff8800; transform: scale(1.05); }
+        33.33% { color: #ffff00; transform: scale(1); }
+        50% { color: #00ff00; transform: scale(1.05); }
+        66.66% { color: #0088ff; transform: scale(1); }
+        83.33% { color: #8800ff; transform: scale(1.05); }
+        100% { color: #ff0000; transform: scale(1); }
+      }
+
+      .file-row {
+        display: flex;
+        gap: 8px;
+        font-size: 0.95rem;
+        margin: 4px 0;
+      }
+
+      .file-name {
+        color: #F5A9B8;
+      }
+
+      .file-status {
+        color: #5BCEFA;
+      }
+
+      .file-status.pending {
+        color: #888;
+      }
+
+      #unity-warning {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+      }
+    </style>
+  </head>
+  <body>
+
+    <div id="loader-screen">
+      <h1>loading... :3 </h1>
+      <a href="https://caesium.pages.dev" target="_blank" style="margin-bottom: 24px; color:#F5A9B8; font-size:1.5rem;">~ caesium ~</a>
+      <img src="/img/yui-peace.gif" alt="yui" width="200" height="200" style="margin-bottom: 24px;">
+      <div class="file-row">
+        <span class="file-name">build.data:</span>
+        <span class="file-status pending" id="status-data">waiting...</span>
+      </div>
+      <div class="file-row">
+        <span class="file-name">build.wasm:</span>
+        <span class="file-status pending" id="status-wasm">waiting...</span>
+      </div>
+    </div>
+
+    <div id="unity-warning"></div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+<script>
+      var warningBanner = document.querySelector("#unity-warning");
+
+      function unityShowBanner(msg, type) {
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px; font-family: Figtree, sans-serif;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px; font-family: Figtree, sans-serif;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+        unityShowBanner('WebGL builds are not supported on mobile devices.');
+      }
+
+      function setStatus(id, text, done) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.classList.remove('pending');
+        if (done) el.style.color = '#00e676';
+        else el.style.color = '#ffeb3b';
+      }
+
+      setStatus('status-data', 'waiting...');
+      setStatus('status-wasm', 'waiting...');
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/build.loader.js";
+      var config = {
+        dataUrl: buildUrl + "/build.data",
+        frameworkUrl: buildUrl + "/build.framework.js",
+        codeUrl: buildUrl + "/build.wasm",
+        symbolsUrl: buildUrl + "/build.symbols.json",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Leotheotherartist",
+        productName: "Traverse",
+        productVersion: "0.1",
+        showBanner: unityShowBanner,
+      };
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(document.querySelector("#unity-canvas"), config, (progress) => {
+          if (progress < 0.5) {
+            const pct = Math.round(progress * 200);
+            setStatus('status-data', `loading... ${pct}%`);
+          } else {
+            setStatus('status-data', 'done ✓', true);
+            if (progress < 1) {
+              const pct = Math.round((progress - 0.5) * 200);
+              setStatus('status-wasm', `loading... ${pct}%`);
+            }
+          }
+          if (progress >= 1) {
+            setStatus('status-wasm', 'done ✓', true);
+          }
+        }).then((unityInstance) => {
+          setTimeout(() => {
+            document.getElementById('loader-screen').style.display = 'none';
+            document.getElementById('unity-canvas').style.display = 'block';
+          }, 500);
+        }).catch((message) => {
+          document.getElementById('loader-screen').innerHTML =
+            `<h1 style="color:#ff4444">Error loading game.<br><small style="font-size:0.8rem">${message}</small></h1>`;
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
