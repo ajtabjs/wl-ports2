@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Beat Banger</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #000000;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":676463876,"index.wasm":1509558},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const PCK_PARTS = 33;
+const SIDE_WASM_PARTS = 2;
+
+function mergeFiles(fileParts, onProgress) {
+	return new Promise((resolve, reject) => {
+		const buffers = [];
+		function fetchPart(index) {
+			if (index >= fileParts.length) {
+				const totalLength = buffers.reduce((sum, buffer) => sum + buffer.byteLength, 0);
+				const combined = new Uint8Array(totalLength);
+				let offset = 0;
+				for (const buffer of buffers) {
+					combined.set(new Uint8Array(buffer), offset);
+					offset += buffer.byteLength;
+				}
+				resolve(new Blob([combined], { type: 'application/octet-stream' }));
+				return;
+			}
+			fetch(fileParts[index]).then((response) => {
+				if (!response.ok) {
+					throw new Error('Failed to fetch ' + fileParts[index]);
+				}
+				return response.arrayBuffer();
+			}).then((data) => {
+				buffers.push(data);
+				if (onProgress) {
+					onProgress(index + 1, fileParts.length);
+				}
+				fetchPart(index + 1);
+			}).catch(reject);
+		}
+		fetchPart(0);
+	});
+}
+
+function getParts(file, totalParts) {
+	return Array.from({ length: totalParts }, (_, index) => file + '.part' + index);
+}
+
+function loadScript(src) {
+	return new Promise((resolve, reject) => {
+		const script = document.createElement('script');
+		script.src = src;
+		script.onload = resolve;
+		script.onerror = () => reject(new Error('Failed to load ' + src));
+		document.body.appendChild(script);
+	});
+}
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	function installBlobInterceptors(pckBlob, sideWasmBlob) {
+		const pckUrl = URL.createObjectURL(pckBlob);
+		const sideWasmUrl = URL.createObjectURL(sideWasmBlob);
+		const redirects = [
+			{ name: 'index.pck', url: pckUrl },
+			{ name: 'index.side.wasm', url: sideWasmUrl },
+		];
+
+		function resolveRedirect(url) {
+			const value = typeof url === 'string' ? url : (url && url.url) || String(url || '');
+			return redirects.find((item) => value.endsWith(item.name)) || null;
+		}
+
+		const originalFetch = window.fetch.bind(window);
+		window.fetch = function (input, init) {
+			const match = resolveRedirect(input);
+			if (match) {
+				return originalFetch(match.url, init);
+			}
+			return originalFetch(input, init);
+		};
+
+		const originalOpen = XMLHttpRequest.prototype.open;
+		XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+			const match = resolveRedirect(url);
+			return originalOpen.call(this, method, match ? match.url : url, ...rest);
+		};
+	}
+
+	function startEngine() {
+		const engine = new Engine(GODOT_CONFIG);
+		const missing = Engine.getMissingFeatures({
+			threads: GODOT_THREADS_ENABLED,
+		});
+
+		if (missing.length !== 0) {
+			if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+				let serviceWorkerRegistrationPromise;
+				try {
+					serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+				} catch (err) {
+					serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+				}
+				Promise.race([
+					serviceWorkerRegistrationPromise.then((registration) => {
+						if (registration != null) {
+							return Promise.reject(new Error('Service worker already exists.'));
+						}
+						return registration;
+					}).then(() => engine.installServiceWorker()),
+					new Promise((resolve) => {
+						setTimeout(() => resolve(), 2000);
+					}),
+				]).then(() => {
+					window.location.reload();
+				}).catch((err) => {
+					console.error('Error while registering service worker:', err);
+				});
+			} else {
+				const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+				displayFailureNotice(missingMsg + missing.join('\n'));
+			}
+			return;
+		}
+
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+
+	setStatusMode('progress');
+	const mergeProgress = { pck: 0, sideWasm: 0 };
+	const totalMergeParts = PCK_PARTS + SIDE_WASM_PARTS;
+	statusProgress.max = totalMergeParts;
+	statusProgress.value = 0;
+
+	Promise.all([
+		mergeFiles(getParts('index.pck', PCK_PARTS), (done) => {
+			mergeProgress.pck = done;
+			statusProgress.value = mergeProgress.pck + mergeProgress.sideWasm;
+		}),
+		mergeFiles(getParts('index.side.wasm', SIDE_WASM_PARTS), (done) => {
+			mergeProgress.sideWasm = done;
+			statusProgress.value = mergeProgress.pck + mergeProgress.sideWasm;
+		}),
+	]).then(([pckBlob, sideWasmBlob]) => {
+		installBlobInterceptors(pckBlob, sideWasmBlob);
+		return loadScript('index.js');
+	}).then(() => {
+		startEngine();
+	}).catch(displayFailureNotice);
+}());
+		</script>
+	</body>
+</html>
