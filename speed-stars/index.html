@@ -1,119 +1,254 @@
 <!DOCTYPE html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | Speed Stars</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
-    <style>
-      html,
-      body {
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-          height: 100%;
-          width: 100%;
-      }
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Unity WebGL Player | Speed Stars</title>
+  <link rel="shortcut icon" href="TemplateData/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    @font-face { 
+  font-family: "Figtree";
+  src: 
+    url(https://anthonyfontano.pages.dev/Figtree-VariableFont_wght.ttf) format("truetype");
+}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      #unity-container {
-          width: 100%;
-          height: 100%;
-          position: fixed;
-          top: 0;
-          left: 0;
-      }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Figtree', sans-serif;
+    }
+
+    #unity-canvas {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    #loader-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: #fff;
+      gap: 10px;
+    }
+
+    #loader-screen h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    #loader-screen img {
+      margin-bottom: 24px;
+    }
+
+    .file-row {
+      display: flex;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+
+    .file-name {
+      color: #F5A9B8;
+      font-weight: 600;
+    }
+
+    .file-status {
+      color: #ffeb3b;
+    }
+
+    .file-status.pending {
+      color: #888;
+    }
+
+    .file-status.done {
+      color: #00e676;
+    }
+
+    #unity-progress-wrap {
+      margin-top: 16px;
+      width: 260px;
+      height: 6px;
+      background: #222;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #unity-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #F5A9B8;
+      transition: width 0.2s ease;
+    }
   </style>
-  </head>
-  <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=600></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
-        </div>
-      </div>
-      <div id="unity-warning"> </div>
+</head>
+<body>
+
+  <div id="loader-screen">
+    <h1>loading...</h1>
+    <img src="../ritsu.gif" alt="ritsu" width="200" height="200" style="margin-bottom: 24px;">
+    <div class="file-row">
+      <span class="file-name">webgl.data:</span>
+      <span class="file-status pending" id="status-data">waiting...</span>
     </div>
-    <script>
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
+    <div class="file-row">
+      <span class="file-name">webgl.wasm:</span>
+      <span class="file-status pending" id="status-wasm">waiting...</span>
+    </div>
+    <div id="unity-progress-wrap" style="display:none;">
+      <div id="unity-progress-bar"></div>
+    </div>
+  </div>
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
+  <canvas id="unity-canvas"></canvas>
 
-      }
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────────
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/webgl.loader.js";
-      var config = {
-        dataUrl: buildUrl + "/webgl.data",
-        frameworkUrl: buildUrl + "/webgl.framework.js",
-        codeUrl: buildUrl + "/webgl.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "Luke Doukakis",
-        productName: "Speed Stars",
-        productVersion: "1.0",
-        showBanner: unityShowBanner,
+    function setStatus(id, text, state /* 'pending'|'active'|'done' */) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'file-status' + (state === 'done' ? ' done' : state === 'pending' ? ' pending' : '');
+    }
+
+    /**
+     * Fetch parts serially, concatenate, return Blob.
+     * parts: array of URLs, e.g. ['Build/webgl.data.part0', ...]
+     * onProgress(done, total): called after each part lands
+     */
+    function mergeParts(parts, onProgress) {
+      return new Promise((resolve, reject) => {
+        const buffers = [];
+        function next(i) {
+          if (i >= parts.length) {
+            const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+            const out   = new Uint8Array(total);
+            let offset  = 0;
+            for (const b of buffers) { out.set(new Uint8Array(b), offset); offset += b.byteLength; }
+            resolve(new Blob([out], { type: 'application/octet-stream' }));
+            return;
+          }
+          fetch(parts[i])
+            .then(r => { if (!r.ok) throw new Error('Failed to fetch ' + parts[i]); return r.arrayBuffer(); })
+            .then(buf => { buffers.push(buf); if (onProgress) onProgress(i + 1, parts.length); next(i + 1); })
+            .catch(reject);
+        }
+        next(0);
+      });
+    }
+
+    function makeParts(base, count) {
+      return Array.from({ length: count }, (_, i) => base + '.part' + i);
+    }
+
+    // ── Config ─────────────────────────────────────────────────────────────────
+
+    const BASE      = 'Build/';
+    const DATA_FILE = 'webgl.data';
+    const WASM_FILE = 'webgl.wasm';
+    const DATA_PARTS = 5;   // part0 – part4
+    const WASM_PARTS = 3;   // part0 – part2
+
+    // ── Kick off parallel merges ───────────────────────────────────────────────
+
+    setStatus('status-data', 'merging... 0/' + DATA_PARTS, 'active');
+    setStatus('status-wasm', 'merging... 0/' + WASM_PARTS, 'active');
+
+    Promise.all([
+      mergeParts(makeParts(BASE + DATA_FILE, DATA_PARTS), (d, t) =>
+        setStatus('status-data', 'merging... ' + d + '/' + t, 'active')
+      ).then(blob => { setStatus('status-data', 'done ✓', 'done'); return blob; }),
+
+      mergeParts(makeParts(BASE + WASM_FILE, WASM_PARTS), (d, t) =>
+        setStatus('status-wasm', 'merging... ' + d + '/' + t, 'active')
+      ).then(blob => { setStatus('status-wasm', 'done ✓', 'done'); return blob; }),
+    ])
+    .then(([dataBlob, wasmBlob]) => {
+      // Create blob URLs for the merged files
+      const dataUrl = URL.createObjectURL(dataBlob);
+      const wasmUrl = URL.createObjectURL(wasmBlob);
+
+      // Intercept fetch so Unity's loader gets blob URLs instead of real paths
+      const _fetch = window.fetch;
+      window.fetch = async (url, ...args) => {
+        if (typeof url === 'string') {
+          if (url.includes(DATA_FILE)) return _fetch(dataUrl, ...args);
+          if (url.includes(WASM_FILE)) return _fetch(wasmUrl, ...args);
+        }
+        return _fetch(url, ...args);
       };
 
-      // By default Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
+      // Intercept XHR too (Unity uses both)
+      const _open = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+        if (typeof url === 'string') {
+          if (url.includes(DATA_FILE)) url = dataUrl;
+          else if (url.includes(WASM_FILE)) url = wasmUrl;
+        }
+        return _open.call(this, method, url, ...rest);
+      };
 
+      // Show Unity progress bar now that merging is done
+      document.getElementById('unity-progress-wrap').style.display = 'block';
+
+      // Dynamically load Unity's loader script
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = BASE + 'webgl.loader.js';
+        s.onload  = resolve;
+        s.onerror = () => reject(new Error('Failed to load webgl.loader.js'));
+        document.body.appendChild(s);
+      });
+    })
+    .then(() => {
+      const canvas = document.getElementById('unity-canvas');
+
+      // Mobile sizing
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
+        const meta = document.createElement('meta');
         meta.name = 'viewport';
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        container.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-        canvas.style.width = window.innerWidth + 'px';
-        canvas.style.height = window.innerHeight + 'px';
-
-        unityShowBanner('WebGL builds are not supported on mobile devices.');
+        document.head.appendChild(meta);
       } else {
         function resizeCanvas() {
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
-          canvas.style.width = window.innerWidth + "px";
-          canvas.style.height = window.innerHeight + "px";
+          canvas.style.width  = window.innerWidth  + 'px';
+          canvas.style.height = window.innerHeight + 'px';
         }
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
       }
 
-      loadingBar.style.display = "block";
-
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
-        }).then((unityInstance) => {
-          loadingBar.style.display = "none";
-        }).catch((message) => {
-          alert(message);
-        });
-      };
-      document.body.appendChild(script);
-    </script>
-  </body>
+      return createUnityInstance(canvas, {
+        dataUrl:            BASE + DATA_FILE,
+        frameworkUrl:       BASE + 'webgl.framework.js',
+        codeUrl:            BASE + WASM_FILE,
+        streamingAssetsUrl: 'StreamingAssets',
+        companyName:        'Luke Doukakis',
+        productName:        'Speed Stars',
+        productVersion:     '1.0',
+      }, (progress) => {
+        document.getElementById('unity-progress-bar').style.width = (100 * progress) + '%';
+      });
+    })
+    .then(() => {
+      document.getElementById('loader-screen').style.display = 'none';
+      document.getElementById('unity-canvas').style.display  = 'block';
+    })
+    .catch(err => {
+      document.getElementById('loader-screen').innerHTML =
+        `<h1 style="color:#ff4444">Error loading game.<br>
+         <small style="font-size:0.85rem;font-weight:400">${err.message || err}</small></h1>`;
+    });
+  </script>
+</body>
 </html>
