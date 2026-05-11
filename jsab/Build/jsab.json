@@ -1,0 +1,16 @@
+{
+"companyName": "Berzerk Studio",
+"productName": "JSB",
+"productVersion": "1.6.30",
+"dataUrl": "jsab.data.unityweb",
+"wasmCodeUrl": "jsab.wasm.code.unityweb",
+"wasmFrameworkUrl": "jsab.wasm.framework.unityweb",
+"graphicsAPI": ["WebGL 2.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"splashScreenStyle": "Dark",
+"backgroundColor": "#000000",
+"cacheControl": {"default": "must-revalidate"},
+"developmentBuild": false,
+"multithreading": false,
+"unityVersion": "2019.4.41f2"
+}
