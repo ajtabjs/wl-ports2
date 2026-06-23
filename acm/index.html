@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html xmlns='http://www.w3.org/1999/xhtml' lang='' xml:lang=''>
+<head>
+	<meta charset='utf-8' />
+	<meta name='viewport' content='width=device-width, user-scalable=no' />
+	<title>Anomalous Coffee Machine</title>
+	<style type='text/css'>
+
+		body {
+			touch-action: none;
+			margin: 0;
+			border: 0 none;
+			padding: 0;
+			text-align: center;
+			background-color: black;
+		}
+
+		#canvas {
+			display: block;
+			margin: 0;
+			color: white;
+		}
+
+		#canvas:focus {
+			outline: none;
+		}
+
+		.godot {
+			font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+			color: #e0e0e0;
+			background-color: #3b3943;
+			background-image: linear-gradient(to bottom, #403e48, #35333c);
+			border: 1px solid #45434e;
+			box-shadow: 0 0 1px 1px #2f2d35;
+		}
+
+
+		/* Status display
+		 * ============== */
+
+		#status {
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			/* don't consume click events - make children visible explicitly */
+			visibility: hidden;
+		}
+
+		#status-progress {
+			width: 366px;
+			height: 7px;
+			background-color: #38363A;
+			border: 1px solid #444246;
+			padding: 1px;
+			box-shadow: 0 0 2px 1px #1B1C22;
+			border-radius: 2px;
+			visibility: visible;
+		}
+
+		@media only screen and (orientation:portrait) {
+			#status-progress {
+				width: 61.8%;
+			}
+		}
+
+		#status-progress-inner {
+			height: 100%;
+			width: 0;
+			box-sizing: border-box;
+			transition: width 0.5s linear;
+			background-color: #202020;
+			border: 1px solid #222223;
+			box-shadow: 0 0 1px 1px #27282E;
+			border-radius: 3px;
+		}
+
+		#status-indeterminate {
+			height: 42px;
+			visibility: visible;
+			position: relative;
+		}
+
+		#status-indeterminate > div {
+			width: 4.5px;
+			height: 0;
+			border-style: solid;
+			border-width: 9px 3px 0 3px;
+			border-color: #2b2b2b transparent transparent transparent;
+			transform-origin: center 21px;
+			position: absolute;
+		}
+
+		#status-indeterminate > div:nth-child(1) { transform: rotate( 22.5deg); }
+		#status-indeterminate > div:nth-child(2) { transform: rotate( 67.5deg); }
+		#status-indeterminate > div:nth-child(3) { transform: rotate(112.5deg); }
+		#status-indeterminate > div:nth-child(4) { transform: rotate(157.5deg); }
+		#status-indeterminate > div:nth-child(5) { transform: rotate(202.5deg); }
+		#status-indeterminate > div:nth-child(6) { transform: rotate(247.5deg); }
+		#status-indeterminate > div:nth-child(7) { transform: rotate(292.5deg); }
+		#status-indeterminate > div:nth-child(8) { transform: rotate(337.5deg); }
+
+		#status-splash {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			z-index: 0;
+			transition: opacity 2s ease-out;
+		}
+
+		#status-notice {
+			margin: 0 100px;
+			line-height: 1.3;
+			visibility: visible;
+			padding: 4px 6px;
+			visibility: visible;
+		}
+	</style>
+<link id='-gd-engine-icon' rel='icon' type='image/png' href='index.icon.png' />
+<link rel='apple-touch-icon' href='index.apple-touch-icon.png'/>
+
+</head>
+<body>
+	<canvas id='canvas'>
+		HTML5 canvas appears to be unsupported in the current browser.<br />
+		Please try updating or use a different browser.
+	</canvas>
+	<div id='status'>
+		<img id='status-splash' src='joe.jpg' alt=''>
+		<div id='status-progress' style='display: none;' oncontextmenu='event.preventDefault();'><div id ='status-progress-inner'></div></div>
+		<div id='status-indeterminate' style='display: none;' oncontextmenu='event.preventDefault();'>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+		</div>
+		<div id='status-notice' class='godot' style='display: none;'></div>
+	</div>
+
+	<script>
+window.fileMergerConfig = {
+	files: [
+		{ name: "index.pck", parts: 87 },
+	],
+	basePath: "",
+	debug: true,
+};
+</script>
+<script>
+(function () {
+  "use strict";
+
+  const defaultConfig = {
+    files: [],
+    basePath: "",
+    debug: true,
+  };
+
+  const config = Object.assign(
+    {},
+    defaultConfig,
+    window.fileMergerConfig || {},
+  );
+  window.mergedFiles = window.mergedFiles || {};
+
+  const mergeStatus = {};
+  const mergeProgress = {};
+
+  let loadingDiv;
+  let loadingContent;
+  let updateScheduled = false;
+
+  const fileMap = new Map();
+  const urlCache = new Map();
+  const downloadCache = new Map();
+
+  const DOWNLOAD_CONCURRENCY = 6;
+  const POLL_START_INTERVAL = 10;
+  const MAX_POLL_INTERVAL = 100;
+  const MAX_WAIT_TIME = 60000;
+
+  function initializeUI() {
+    loadingDiv = document.createElement("div");
+    loadingDiv.id = "file-merger-loading";
+    loadingDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.55);
+      color: white;
+      padding: 30px 40px;
+      border-radius: 10px;
+      font-family: monospace;
+      font-size: 16px;
+      z-index: 10000;
+      min-width: 300px;
+      text-align: center;
+      pointer-events: none;
+    `;
+
+    loadingContent = document.createElement("div");
+    loadingContent.id = "file-merger-content";
+    loadingDiv.appendChild(loadingContent);
+    document.body.appendChild(loadingDiv);
+  }
+
+  function updateLoadingDisplay() {
+    if (updateScheduled) return;
+
+    updateScheduled = true;
+    requestAnimationFrame(() => {
+      if (!loadingContent) {
+        updateScheduled = false;
+        return;
+      }
+
+      const lines = [
+        '<div style="font-size: 18px; margin-bottom: 15px;">loading...</div>',
+      ];
+
+      config.files.forEach((file) => {
+        const status = mergeStatus[file.name] || "waiting";
+        const progress = mergeProgress[file.name] || {
+          current: 0,
+          total: file.parts,
+        };
+
+        let statusText = "";
+        let color = "#888";
+
+        if (status === "merging") {
+          const percent = ((progress.current / progress.total) * 100).toFixed(0);
+          statusText = ` merging... ${progress.current}/${progress.total} (${percent}%)`;
+          color = "#ffa500";
+        } else if (status === "ready") {
+          statusText = "✓ done";
+          color = "#00ff00";
+        } else if (status === "failed") {
+          statusText = "✗ failed";
+          color = "#ff0000";
+        } else {
+          statusText = "○ waiting...";
+        }
+
+        lines.push(
+          `<div style="margin: 6px 0; color: ${color}; font-size: 14px;">${file.name}: ${statusText}</div>`,
+        );
+      });
+
+      loadingContent.innerHTML = lines.join("");
+
+      const allDone = config.files.every(
+        (file) =>
+          mergeStatus[file.name] === "ready" ||
+          mergeStatus[file.name] === "failed",
+      );
+
+      if (allDone) {
+        setTimeout(() => {
+          if (loadingDiv) {
+            loadingDiv.style.opacity = "0";
+            loadingDiv.style.transition = "opacity 0.5s";
+            setTimeout(() => {
+              if (loadingDiv && loadingDiv.remove) loadingDiv.remove();
+            }, 500);
+          }
+        }, 1000);
+      }
+
+      updateScheduled = false;
+    });
+  }
+
+  function log(...args) {
+    if (config.debug) console.log("[FileMerger]", ...args);
+  }
+
+  function error(...args) {
+    console.error("[FileMerger]", ...args);
+  }
+
+  function normalizeUrl(url) {
+    try {
+      const cleanUrl = decodeURIComponent(url.toString().split("?")[0]);
+      return cleanUrl;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  function urlsMatch(url1, url2) {
+    const norm1 = normalizeUrl(url1);
+    const norm2 = normalizeUrl(url2);
+
+    if (norm1 === norm2) return true;
+    if (norm1.endsWith(norm2) || norm2.endsWith(norm1)) return true;
+
+    return norm1.split("/").pop() === norm2.split("/").pop();
+  }
+
+  function initializeFileMap() {
+    fileMap.clear();
+    for (const file of config.files) {
+      const fileName = file.name;
+      const fullPath = config.basePath ? `${config.basePath}${fileName}` : fileName;
+
+      const variants = [
+        fileName,
+        fullPath,
+        fileName + ".br",
+        fullPath + ".br"
+      ];
+
+      for (const variant of variants) {
+        const normalized = normalizeUrl(variant);
+        fileMap.set(normalized, file);
+      }
+    }
+  }
+
+  function shouldInterceptFile(url) {
+    const urlStr = normalizeUrl(url);
+
+    if (urlStr.includes(".part")) return null;
+
+    const file = fileMap.get(urlStr);
+    return file ? file.name : null;
+  }
+
+  function getMergedFile(filename) {
+    if (window.mergedFiles[filename]) return window.mergedFiles[filename];
+
+    for (const [key, value] of Object.entries(window.mergedFiles)) {
+      if (urlsMatch(key, filename)) return value;
+    }
+
+    return null;
+  }
+
+  async function downloadPart(url, partIndex, fileName) {
+    if (downloadCache.has(url)) {
+      return downloadCache.get(url);
+    }
+
+    const promise = (async () => {
+      const response = await window.originalFetch(url);
+      if (!response.ok) {
+        if (response.status === 403 || response.status === 404) {
+          throw new Error(`Part missing: ${url}`);
+        }
+        throw new Error(`Failed to load part ${url}: ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+
+      if (mergeProgress[fileName]) {
+        mergeProgress[fileName].current++;
+        updateLoadingDisplay();
+      }
+
+      return buffer;
+    })();
+
+    downloadCache.set(url, promise);
+    return promise;
+  }
+
+  async function mergeSplitFiles(filePath, numParts) {
+    const fileName = filePath.split("/").pop();
+    mergeProgress[fileName] = { current: 0, total: numParts };
+    updateLoadingDisplay();
+
+    try {
+      const parts = Array.from(
+        { length: numParts },
+        (_, i) => `${filePath}.part${i}`
+      );
+
+      log(`Merging ${filePath} from ${numParts} parts...`);
+
+      const buffers = new Array(numParts);
+
+      for (let i = 0; i < numParts; i += DOWNLOAD_CONCURRENCY) {
+        const batchEnd = Math.min(i + DOWNLOAD_CONCURRENCY, numParts);
+        const batchPromises = [];
+
+        for (let j = i; j < batchEnd; j++) {
+          batchPromises.push(
+            downloadPart(parts[j], j, fileName).then(buffer => {
+              buffers[j] = buffer;
+            })
+          );
+        }
+
+        await Promise.all(batchPromises);
+      }
+
+      const totalSize = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+      const mergedArray = new Uint8Array(totalSize);
+      let offset = 0;
+
+      for (const buffer of buffers) {
+        mergedArray.set(new Uint8Array(buffer), offset);
+        offset += buffer.byteLength;
+      }
+
+      for (let i = 0; i < numParts; i++) {
+        downloadCache.delete(`${filePath}.part${i}`);
+      }
+
+      log(`✓ ${filePath} done: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+      return mergedArray.buffer;
+    } catch (err) {
+      error(`Failed to merge ${filePath}:`, err);
+      throw err;
+    }
+  }
+
+  if (!window.originalFetch) window.originalFetch = window.fetch;
+
+  window.fetch = function (url, ...args) {
+    const filename = shouldInterceptFile(url);
+
+    if (filename) {
+      log("Intercepting fetch for:", filename);
+
+      return new Promise((resolve, reject) => {
+        const startTime = Date.now();
+        let pollInterval = POLL_START_INTERVAL;
+
+        const check = () => {
+          const buffer = getMergedFile(filename);
+
+          if (buffer) {
+            const contentType = filename.endsWith(".wasm")
+              ? "application/wasm"
+              : "application/octet-stream";
+            resolve(
+              new Response(buffer, {
+                status: 200,
+                statusText: "OK",
+                headers: {
+                  "Content-Type": contentType,
+                  "Content-Length": buffer.byteLength.toString(),
+                  "Cache-Control": "no-cache",
+                },
+              }),
+            );
+          } else if (mergeStatus[filename] === "failed") {
+            reject(new Error(`Merge failed for ${filename}`));
+          } else if (Date.now() - startTime > MAX_WAIT_TIME) {
+            reject(new Error(`Timeout waiting for ${filename}`));
+          } else {
+            pollInterval = Math.min(pollInterval * 1.5, MAX_POLL_INTERVAL);
+            setTimeout(check, pollInterval);
+          }
+        };
+
+        check();
+      });
+    }
+
+    return window.originalFetch.call(this, url, ...args);
+  };
+
+  if (!window.OriginalXMLHttpRequest)
+    window.OriginalXMLHttpRequest = window.XMLHttpRequest;
+
+  window.XMLHttpRequest = function (options) {
+    const xhr = new window.OriginalXMLHttpRequest(options);
+    const originalOpen = xhr.open;
+    const originalSend = xhr.send;
+    let requestUrl = "";
+    let pollInterval = POLL_START_INTERVAL;
+
+    xhr.open = function (method, url, ...args) {
+      requestUrl = url;
+      return originalOpen.call(this, method, url, ...args);
+    };
+
+    xhr.send = function (...args) {
+      const filename = shouldInterceptFile(requestUrl);
+
+      if (filename) {
+        log("Intercepting XHR for:", filename);
+
+        const waitForMerge = () => {
+          const buffer = getMergedFile(filename);
+
+          if (buffer) {
+            Object.defineProperties(xhr, {
+              status: { value: 200, configurable: true },
+              statusText: { value: "OK", configurable: true },
+              response: { value: buffer, configurable: true },
+              responseText: { value: null, configurable: true },
+              responseType: { value: "arraybuffer", configurable: true },
+              readyState: { value: 4, configurable: true },
+            });
+
+            queueMicrotask(() => {
+              if (xhr.onreadystatechange) xhr.onreadystatechange();
+              if (xhr.onload) xhr.onload({ type: "load", target: xhr });
+            });
+          } else if (mergeStatus[filename] === "failed") {
+            if (xhr.onerror) xhr.onerror(new Error("Merge Failed"));
+          } else {
+            setTimeout(() => {
+              pollInterval = Math.min(pollInterval * 1.5, MAX_POLL_INTERVAL);
+              waitForMerge();
+            }, pollInterval);
+          }
+        };
+
+        waitForMerge();
+        return;
+      }
+
+      return originalSend.call(this, ...args);
+    };
+
+    return xhr;
+  };
+
+  async function autoMergeFiles() {
+    if (!config.files.length) return;
+
+    initializeFileMap();
+    updateLoadingDisplay();
+
+    try {
+      const promises = config.files.map((file) => {
+        const fullPath = config.basePath
+          ? `${config.basePath}${file.name}`
+          : file.name;
+
+        mergeStatus[file.name] = "merging";
+        updateLoadingDisplay();
+
+        return mergeSplitFiles(fullPath, file.parts)
+          .then((buffer) => {
+            window.mergedFiles[file.name] = buffer;
+            window.mergedFiles[fullPath] = buffer;
+            mergeStatus[file.name] = "ready";
+            updateLoadingDisplay();
+          })
+          .catch((err) => {
+            mergeStatus[file.name] = "failed";
+            updateLoadingDisplay();
+            error(`Failed to merge ${file.name}:`, err);
+          });
+      });
+
+      await Promise.all(promises);
+
+      downloadCache.clear();
+      log("All files merged successfully");
+    } catch (e) {
+      error("Auto-merge failed:", e);
+    }
+  }
+
+  function init() {
+    if (document.body) {
+      initializeUI();
+      autoMergeFiles();
+    } else {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => {
+          initializeUI();
+          autoMergeFiles();
+        });
+      } else {
+        setTimeout(init, 10);
+      }
+    }
+  }
+
+  init();
+})();
+</script>
+<script src="index.js"></script>
+<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1808312432,"index.wasm":19761972},"focusCanvas":true,"gdnativeLibs":[]};
+var engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusProgressInner = document.getElementById('status-progress-inner');
+	const statusNotice = document.getElementById('status-notice');
+
+	var initializing = true;
+	var statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) return;
+		statusOverlay.style.visibility = mode === 'hidden' ? 'hidden' : 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		var msg = err.message || err;
+		console.error(msg);
+		setStatusNotice(msg);
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	if (!Engine.isWebGLAvailable()) {
+		displayFailureNotice('WebGL not available');
+	} else {
+		setStatusMode('indeterminate');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (total > 0) {
+					statusProgressInner.style.width = current/total * 100 + '%';
+					setStatusMode('progress');
+					if (current === total) {
+						setTimeout(() => { setStatusMode('indeterminate'); }, 500);
+					}
+				} else {
+					setStatusMode('indeterminate');
+				}
+			},
+		}).then(() => {
+			var splash = document.getElementById('status-splash');
+			if (splash) splash.style.opacity = '0';
+			setTimeout(function() {
+				setStatusMode('hidden');
+				initializing = false;
+			}, 2000);
+		}, displayFailureNotice);
+	}
+}());
+</script>
+</body>
+</html>
+
