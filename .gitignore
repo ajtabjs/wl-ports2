@@ -1,3 +1,2 @@
-/the-desolate-hope/
-/oneshot/
-/temp.js
+*.py
+__pycache__
