@@ -1,10 +1,5 @@
-//=============================================================================
-// main.js
-//=============================================================================
-
-PluginManager.setup($plugins);
-
 window.onload = function() {
+    PluginManager.setup($plugins);
     SceneManager.run(Scene_Boot);
     setTimeout(() => {
         window.fullSetupComplete = true;

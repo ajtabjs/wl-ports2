@@ -46,7 +46,7 @@
 			
             function keyOf(path) {
                 var s = String(path).split("?")[0].split("#")[0].replace(/\\/g, "/");
-                try { s = decodeURIComponent(s); } catch (e) { /* leave as-is */ }
+                try { s = decodeURIComponent(s); } catch (e) { }
                 return s.toLowerCase().replace(/ /g, "_");
             }
 
