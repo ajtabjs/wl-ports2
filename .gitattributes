@@ -1,0 +1,7 @@
+# Split archive parts (tools/split.py) must survive git byte-for-byte: the
+# loader in each port's index.html reassembles them and verifies the exact
+# byte length before use. Without this, core.autocrlf rewrites the JavaScript
+# bundle parts on commit/checkout, and a 20 MB cut that lands between a CR and
+# its LF corrupts the merged file.
+*.part[0-9] binary
+*.part[0-9][0-9] binary

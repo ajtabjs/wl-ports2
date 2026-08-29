@@ -2,7 +2,6 @@
 <html>
 
 <head>
-    <base href="https://rawcdn.githack.com/genizy/web-port/5c578559bf738e50a13ce0ab05db778f925ad445/omori-fixed/">
     <meta charset="UTF-8">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,12 +13,431 @@
 </head>
 
 <body style="background-color: black">
+    <div id="loading-text"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: #000; color: #fff; font-family: GameFont, sans-serif; font-size: 24px; display: flex; align-items: center; justify-content: center; text-align: center;">
+        LOADING...</div>
+    <div id="asset-loading-text"
+        style="position: fixed; bottom: 8px; right: 12px; z-index: 99998; color: #fff; font-family: GameFont, sans-serif; font-size: 14px; text-shadow: 1px 1px 2px #000; display: none; pointer-events: none;">
+    </div>
+    <script>
+        (function () {
+            "use strict";
+
+            var CACHE_NAME = "omori-cache";
+            var SPLIT_FILES = [
+                { path: "data.bundle.js", parts: 4, bytes: 78120218, kind: "script", mime: "application/javascript;charset=utf-8" },
+                { path: "maps.js", parts: 3, bytes: 43547120, kind: "script", mime: "application/javascript;charset=utf-8" },
+                { path: "audio/bgm/jb_omniboi.rpgmvo", parts: 2, bytes: 33153186, kind: "audio", mime: "application/octet-stream" },
+                { path: "audio/bgm/jb_slimegirls.rpgmvo", parts: 2, bytes: 31881820, kind: "audio", mime: "application/octet-stream" },
+                { path: "audio/bgm/jb_samm.rpgmvo", parts: 2, bytes: 29309600, kind: "audio", mime: "application/octet-stream" },
+                { path: "audio/bgm/jb_madeleine.rpgmvo", parts: 2, bytes: 29045568, kind: "audio", mime: "application/octet-stream" },
+                { path: "movies/good_end_credits_draft_5.webm", parts: 2, bytes: 26005102, kind: "video", mime: "video/webm" },
+                { path: "movies/bad_end_credits_draft_4.webm", parts: 2, bytes: 24567459, kind: "video", mime: "video/webm" },
+                { path: "movies/final_duet.webm", parts: 2, bytes: 23831734, kind: "video", mime: "video/webm" },
+                { path: "movies/good end credits draft 5.webm", parts: 2, bytes: 26005102, kind: "video", mime: "video/webm" },
+                { path: "movies/bad end credits draft 4.webm", parts: 2, bytes: 24567459, kind: "video", mime: "video/webm" }
+            ];
+
+            var BOOT_FILES = ["data.bundle.js", "maps.js"];
+
+            var nativeFetch = window.fetch.bind(window);
+            var loadingText = document.querySelector("#loading-text");
+            var assetText = document.querySelector("#asset-loading-text");
+			
+            function keyOf(path) {
+                var s = String(path).split("?")[0].split("#")[0].replace(/\\/g, "/");
+                try { s = decodeURIComponent(s); } catch (e) { /* leave as-is */ }
+                return s.toLowerCase().replace(/ /g, "_");
+            }
+
+            var INDEX = {};
+            var INDEX_KEYS = [];
+            SPLIT_FILES.forEach(function (entry) {
+                var key = keyOf(entry.path);
+                if (INDEX[key]) return;   
+                INDEX[key] = entry;
+                INDEX_KEYS.push(key);
+            });
+
+            function lookup(url) {
+                if (!url) return null;
+                var key = keyOf(url);
+                for (var i = 0; i < INDEX_KEYS.length; i++) {
+                    var candidate = INDEX_KEYS[i];
+                    if (key === candidate || key.slice(-candidate.length - 1) === "/" + candidate) {
+                        return INDEX[candidate];
+                    }
+                }
+                return null;
+            }
+
+            function entryFor(path) {
+                return INDEX[keyOf(path)];
+            }
+
+            function getParts(file, start, end) {
+                var parts = [];
+                for (var i = start; i <= end; i++) {
+                    parts.push(file + ".part" + i);
+                }
+                return parts;
+            }
+
+            function openCache() {
+                if (typeof caches === "undefined") return Promise.resolve(null);
+                return caches.open(CACHE_NAME).catch(function () { return null; });
+            }
+
+            function cacheKeyFor(entry) {
+                return "__split__/" + entry.path + "?bytes=" + entry.bytes;
+            }
+
+            function fetchWithProgress(url, onChunk) {
+                return nativeFetch(url).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("Failed to load " + url + " (HTTP " + response.status + ")");
+                    }
+                    if (!response.body) {
+                        return response.arrayBuffer().then(function (buffer) {
+                            onChunk(buffer.byteLength);
+                            return buffer;
+                        });
+                    }
+                    var reader = response.body.getReader();
+                    var chunks = [];
+                    var received = 0;
+                    return (function pump() {
+                        return reader.read().then(function (result) {
+                            if (result.done) {
+                                var full = new Uint8Array(received);
+                                var offset = 0;
+                                for (var i = 0; i < chunks.length; i++) {
+                                    full.set(chunks[i], offset);
+                                    offset += chunks[i].length;
+                                }
+                                return full.buffer;
+                            }
+                            received += result.value.length;
+                            chunks.push(result.value);
+                            onChunk(result.value.length);
+                            return pump();
+                        });
+                    })();
+                });
+            }
+
+            function mergeFiles(entry, onChunk) {
+                var cacheKey = cacheKeyFor(entry);
+                return openCache().then(function (cache) {
+                    return (cache ? cache.match(cacheKey) : Promise.resolve(null)).then(function (cached) {
+                        if (cached) {
+                            return cached.blob().then(function (blob) {
+                                onChunk(entry.bytes);  
+                                return blob;
+                            });
+                        }
+                        var parts = getParts(entry.path, 0, entry.parts - 1);
+                        return Promise.all(parts.map(function (part) {
+                            return fetchWithProgress(part, onChunk);
+                        })).then(function (buffers) {
+                            var blob = new Blob(buffers, { type: entry.mime });
+                            if (blob.size !== entry.bytes) {
+                                throw new Error("Size mismatch for " + entry.path +
+                                    ": merged " + blob.size + " bytes, expected " + entry.bytes);
+                            }
+                            if (!cache) return blob;
+                            var response = new Response(blob, {
+                                status: 200,
+                                statusText: "OK",
+                                headers: {
+                                    "Content-Type": entry.mime,
+                                    "Content-Length": String(blob.size)
+                                }
+                            });
+                            return cache.put(cacheKey, response)
+                                .catch(function () {  })
+                                .then(function () { return blob; });
+                        });
+                    });
+                });
+            }
+
+            function mergedBlob(entry, onChunk) {
+                if (!entry._blob) {
+                    entry._blob = mergeFiles(entry, onChunk || function () { }).catch(function (error) {
+                        entry._blob = null;   
+                        throw error;
+                    });
+                }
+                return entry._blob;
+            }
+
+            function mergedUrl(entry, onChunk) {
+                if (!entry._url) {
+                    entry._url = mergedBlob(entry, onChunk).then(function (blob) {
+                        return URL.createObjectURL(blob);
+                    }).catch(function (error) {
+                        entry._url = null;
+                        throw error;
+                    });
+                }
+                return entry._url;
+            }
+
+            var bootTotal = BOOT_FILES.reduce(function (sum, path) {
+                return sum + entryFor(path).bytes;
+            }, 0);
+            var bootLoaded = 0;
+
+            function toMB(bytes) {
+                return (bytes / (1024 * 1024)).toFixed(2);
+            }
+
+            function bootProgress(delta) {
+                bootLoaded = Math.min(bootLoaded + delta, bootTotal);
+                loadingText.textContent = "LOADING... " + toMB(bootLoaded) + " MB / " + toMB(bootTotal) + " MB";
+            }
+            bootProgress(0);
+
+           
+            var pending = [];
+
+            function renderPending() {
+                if (!pending.length) {
+                    assetText.style.display = "none";
+                    return;
+                }
+                var loaded = 0;
+                var total = 0;
+                for (var i = 0; i < pending.length; i++) {
+                    loaded += pending[i].loaded;
+                    total += pending[i].total;
+                }
+                var label = pending.length === 1 ? pending[0].name : pending.length + " FILES";
+                assetText.textContent = "LOADING " + label + "... " + toMB(loaded) + " / " + toMB(total) + " MB";
+                assetText.style.display = "block";
+            }
+
+         
+            function onDemand(entry, wantUrl) {
+                if (entry._blob) {
+                    return wantUrl ? mergedUrl(entry) : mergedBlob(entry);
+                }
+                var slot = {
+                    name: entry.path.replace(/^.*\//, "").toUpperCase(),
+                    loaded: 0,
+                    total: entry.bytes
+                };
+                pending.push(slot);
+                renderPending();
+
+                function onChunk(delta) {
+                    slot.loaded = Math.min(slot.loaded + delta, slot.total);
+                    renderPending();
+                }
+                function release() {
+                    var at = pending.indexOf(slot);
+                    if (at >= 0) pending.splice(at, 1);
+                    renderPending();
+                }
+
+                var merged = wantUrl ? mergedUrl(entry, onChunk) : mergedBlob(entry, onChunk);
+                return merged.then(function (value) {
+                    release();
+                    return value;
+                }, function (error) {
+                    release();
+                    throw error;
+                });
+            }
+
+            function onDemandUrl(entry) {
+                return onDemand(entry, true);
+            }
+
+            function onDemandBlob(entry) {
+                return onDemand(entry, false);
+            }
+
+            window.fetch = function (input, init) {
+                var url = typeof input === "string" ? input : (input && input.url);
+                var entry = lookup(url);
+                if (!entry || entry.kind === "script") {
+                    return nativeFetch(input, init);
+                }
+                return onDemandBlob(entry).then(function (blob) {
+                    return new Response(blob, {
+                        status: 200,
+                        statusText: "OK",
+                        headers: {
+                            "Content-Type": entry.mime,
+                            "Content-Length": String(blob.size)
+                        }
+                    });
+                });
+            };
+
+            var nativeOpen = XMLHttpRequest.prototype.open;
+            var nativeSend = XMLHttpRequest.prototype.send;
+
+            XMLHttpRequest.prototype.open = function (method, url) {
+                var entry = lookup(url);
+                var async = arguments.length > 2 ? arguments[2] : true;
+                if (entry && entry.kind !== "script" && async !== false) {
+                    this.__splitEntry = entry;
+                    this.__splitArgs = Array.prototype.slice.call(arguments);
+                } else {
+                    this.__splitEntry = null;
+                }
+                return nativeOpen.apply(this, arguments);
+            };
+
+            XMLHttpRequest.prototype.send = function () {
+                var entry = this.__splitEntry;
+                if (!entry) return nativeSend.apply(this, arguments);
+                this.__splitEntry = null;
+                var xhr = this;
+                var args = arguments;
+                onDemandUrl(entry).then(function (url) {
+                    var reopened = xhr.__splitArgs.slice();
+                    reopened[1] = url;
+                    nativeOpen.apply(xhr, reopened);
+                    nativeSend.apply(xhr, args);
+                }).catch(function (error) {
+                    console.error(error);
+                    xhr.dispatchEvent(new Event("error"));
+                });
+            };
+
+          
+            var mediaSrc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+            if (mediaSrc && mediaSrc.set) {
+                Object.defineProperty(HTMLMediaElement.prototype, "src", {
+                    configurable: true,
+                    enumerable: mediaSrc.enumerable,
+                    get: function () {
+                        return mediaSrc.get.call(this);
+                    },
+                    set: function (value) {
+                        var entry = lookup(value);
+                        if (!entry || entry.kind !== "video") {
+                            this.__splitWanted = null;
+                            mediaSrc.set.call(this, value);
+                            return;
+                        }
+                        var media = this;
+                        media.__splitWanted = value;
+                        onDemandUrl(entry).then(function (url) {
+                            if (media.__splitWanted !== value) return;   // a newer src won
+                            media.__splitWanted = null;
+                            mediaSrc.set.call(media, url);
+                            media.load();
+                        }).catch(function (error) {
+                            console.error(error);
+                            media.dispatchEvent(new Event("error"));
+                        });
+                    }
+                });
+
+                HTMLMediaElement.prototype.setAttribute = function (name, value) {
+                    if (String(name).toLowerCase() === "src") {
+                        this.src = value;
+                        return;
+                    }
+                    return Element.prototype.setAttribute.call(this, name, value);
+                };
+            }
+
+      
+            function patchPixiVideo() {
+                if (!window.PIXI || !PIXI.VideoBaseTexture || PIXI.VideoBaseTexture.__splitPatched) return;
+                var nativeFromUrl = PIXI.VideoBaseTexture.fromUrl;
+                PIXI.VideoBaseTexture.fromUrl = function (videoSrc, scaleMode, crossorigin, autoPlay) {
+                    var url = Array.isArray(videoSrc)
+                        ? (videoSrc[0].src || videoSrc[0])
+                        : (videoSrc.src || videoSrc);
+                    var entry = lookup(url);
+                    if (!entry || entry.kind !== "video") {
+                        return nativeFromUrl.apply(this, arguments);
+                    }
+                    var video = document.createElement("video");
+                    video.setAttribute("webkit-playsinline", "");
+                    video.setAttribute("playsinline", "");
+                    video.preload = "auto";
+                    video.src = url;
+                    return PIXI.VideoBaseTexture.fromVideo(video, scaleMode, autoPlay);
+                };
+                PIXI.VideoBaseTexture.fromUrls = PIXI.VideoBaseTexture.fromUrl;
+                PIXI.VideoBaseTexture.__splitPatched = true;
+            }
+
+            var bootHandler = null;
+            var windowLoaded = false;
+            var assetsReady = false;
+            var booted = false;
+
+
+            try {
+                Object.defineProperty(window, "onload", {
+                    configurable: true,
+                    get: function () { return bootHandler; },
+                    set: function (handler) {
+                        bootHandler = handler;
+                        tryBoot();
+                    }
+                });
+            } catch (error) {
+                console.error("split loader: could not gate window.onload", error);
+            }
+
+            window.addEventListener("load", function () {
+                windowLoaded = true;
+                tryBoot();
+            });
+
+            function tryBoot() {
+                if (booted || !windowLoaded || !assetsReady || typeof bootHandler !== "function") return;
+                booted = true;
+                patchPixiVideo();
+                loadingText.style.display = "none";
+                bootHandler.call(window, new Event("load"));
+            }
+
+            function injectScript(url) {
+                return new Promise(function (resolve, reject) {
+                    var script = document.createElement("script");
+                    script.type = "text/javascript";
+                    script.async = false;
+                    script.onload = function () { resolve(); };
+                    script.onerror = function () { reject(new Error("Failed to run merged script " + url)); };
+                    script.src = url;
+                    document.body.appendChild(script);
+                });
+            }
+
+            function fail(error) {
+                console.error(error);
+                loadingText.style.display = "flex";
+                loadingText.textContent = "FAILED TO LOAD\n" + error.message;
+                loadingText.style.whiteSpace = "pre-wrap";
+            }
+
+            Promise.all(BOOT_FILES.map(function (path) {
+                return mergedUrl(entryFor(path), bootProgress);
+            })).then(function (urls) {
+                return urls.reduce(function (chain, url) {
+                    return chain.then(function () { return injectScript(url); });
+                }, Promise.resolve());
+            }).then(function () {
+                assetsReady = true;
+                tryBoot();
+            }).catch(fail);
+        })();
+    </script>
     <script type="text/javascript" src="nipplejs.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="gamepad.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="js/plugins/aaa___bundle.js?fgjdfnghdfghjfgjhfgjfgjfjgjksdgnkdsjgn"></script>
-    <script type="text/javascript" src="data.bundle.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="languages.en.bundle.js?fgjdfngjksdgnkdsjgn"></script>
-    <script type="text/javascript" src="maps.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="js/libs/js-yaml-master/jsyaml.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="js/libs/pixi.js?fgjdfngjksdgnkdsjgn"></script>
     <script type="text/javascript" src="js/libs/pixi-tilemap.js?fgjdfngjksdgnkdsjgn"></script>
@@ -36,8 +454,11 @@
     <script type="text/javascript" src="js/main.js?fgjdfngjksdgnkdsjgn"></script>
     <!-- gn math patch -->
     <script>
-        // full screen the game ----------------------------------------------------------
         function applycanvasmode() {
+            let canvas = document.querySelector("#GameCanvas");
+            if (!canvas) {
+                return;
+            }
             let w = 0;
             let h = 0;
             let maxW = window.innerWidth;
@@ -49,8 +470,8 @@
                 w = maxW;
                 h = Math.floor((maxW / 4) * 3);
             }
-            document.querySelector("#GameCanvas").style.width = w + "px";
-            document.querySelector("#GameCanvas").style.height = h + "px";
+            canvas.style.width = w + "px";
+            canvas.style.height = h + "px";
             document.querySelector("#GameVideo").style.width = w + "px";
             document.querySelector("#GameVideo").style.height = h + "px";
             document.querySelector("#UpperCanvas").style.width = w + "px";
@@ -58,7 +479,6 @@
         }
         setInterval(applycanvasmode, 100);
 
-        // support mobile ----------------------------------------------------------------
         (function() {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             if (!isMobile) {
@@ -99,19 +519,19 @@
                     const createButton = (text, key, bottom, right, bgColor) => {
                         let button = document.createElement("div");
                         button.style = `
-                    position: fixed; 
-                    bottom: ${bottom}; 
-                    right: ${right}; 
-                    width: 10vw; 
-                    height: 10vw; 
-                    background: ${bgColor}; 
-                    color: white; 
-                    touch-action: none; 
-                    z-index: 999999; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    font-family: sans-serif; 
+                    position: fixed;
+                    bottom: ${bottom};
+                    right: ${right};
+                    width: 10vw;
+                    height: 10vw;
+                    background: ${bgColor};
+                    color: white;
+                    touch-action: none;
+                    z-index: 999999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: sans-serif;
                     font-size: 3vw;
                     border-radius: 50%;
                 `;
