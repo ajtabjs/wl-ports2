@@ -1,0 +1,15 @@
+{
+    "name": "Capuchin",
+    "short_name": "Capuchin",
+    "start_url": "index.html",
+    "display": "fullscreen",
+    "background_color": "#121E1E",
+    "theme_color": "#000",
+    "description": "",
+    "icons": [{
+      "src": "TemplateData/icons/unity-logo-dark.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }]
+  }
