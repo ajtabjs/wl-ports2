@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<base href="https://cdn.jsdelivr.net/gh/ajtabjs/wl-ports2@main/bat-to-bed-demo/">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Bat to Bed (Demo)</title>
+		<link href="https://fonts.bunny.net/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: #000;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#loader-screen {
+	position: fixed;
+	inset: 0;
+	background: #000;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	font-family: 'Figtree', Arial, sans-serif;
+	z-index: 999;
+}
+
+#loader-screen h1 {
+	color: #fff;
+	font-size: 2rem;
+	margin-bottom: 24px;
+	letter-spacing: 0.05em;
+}
+
+#loader-ritsu {
+	margin-bottom: 24px;
+}
+
+.file-row {
+	display: flex;
+	gap: 8px;
+	font-size: 0.95rem;
+	margin: 4px 0;
+}
+
+.file-name {
+	color: #F5A9B8;
+}
+
+.file-status {
+	color: #5BCEFA;
+}
+
+.file-status.pending {
+	color: #888;
+}
+
+#loader-notice {
+	background-color: #5b3943;
+	border: 1px solid #9b3943;
+	border-radius: 0.5rem;
+	color: #e0e0e0;
+	display: none;
+	line-height: 1.3;
+	margin: 24px 2rem 0;
+	max-width: 40rem;
+	padding: 1rem;
+	text-align: center;
+	white-space: pre-wrap;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="loader-screen">
+			<h1>loading...</h1>
+			<img id="loader-ritsu" src="../ritsu.gif" alt="ritsu" width="200" height="200">
+			<div class="file-row">
+				<span class="file-name">index.pck:</span>
+				<span class="file-status pending" id="status-pck">waiting...</span>
+			</div>
+			<div class="file-row">
+				<span class="file-name">engine:</span>
+				<span class="file-status pending" id="status-engine">waiting...</span>
+			</div>
+			<div id="loader-notice"></div>
+		</div>
+
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":333232828,"index.wasm":1589584},"focusCanvas":true,"gdextensionLibs":["libsentry.web.release.wasm32.nothreads.wasm"],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+
+const PCK_PARTS = 16;
+const CACHE_NAME = 'bat-to-bed-demo';
+const PCK_CACHE_KEY = `index.pck?parts=${PCK_PARTS}&size=${GODOT_CONFIG['fileSizes']['index.pck']}`;
+
+function getParts(file, totalParts) {
+	return Array.from({ length: totalParts }, (_, index) => `${file}.part${index}`);
+}
+
+function formatMB(bytes) {
+	return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+async function openCache() {
+	if (!('caches' in window)) {
+		return null;
+	}
+	try {
+		return await caches.open(CACHE_NAME);
+	} catch (err) {
+		console.warn('Cache unavailable, merging from scratch:', err);
+		return null;
+	}
+}
+
+async function fetchWithProgress(url, onBytes) {
+	const response = await fetch(url);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch ${url} (HTTP ${response.status})`);
+	}
+	if (!response.body) {
+		return response.blob();
+	}
+	const reader = response.body.getReader();
+	const chunks = [];
+	for (;;) {
+		const result = await reader.read();
+		if (result.done) {
+			break;
+		}
+		chunks.push(result.value);
+		if (onBytes) {
+			onBytes(result.value.byteLength);
+		}
+	}
+	return new Blob(chunks);
+}
+
+async function storeInCache(cache, cacheKey, blob) {
+	try {
+		await cache.put(cacheKey, new Response(blob));
+		const keys = await cache.keys();
+		await Promise.all(keys
+			.filter((request) => !request.url.endsWith(cacheKey))
+			.map((request) => cache.delete(request)));
+	} catch (err) {
+		console.warn('Could not cache merged file:', err);
+	}
+}
+
+async function mergeFiles(fileParts, cacheKey, onProgress) {
+	const cache = await openCache();
+	if (cache) {
+		try {
+			const cachedResponse = await cache.match(cacheKey);
+			if (cachedResponse) {
+				return { blob: await cachedResponse.blob(), fromCache: true };
+			}
+		} catch (err) {
+			console.warn('Cache lookup failed:', err);
+		}
+	}
+
+	const blobs = [];
+	let loaded = 0;
+	for (let index = 0; index < fileParts.length; index++) {
+		blobs.push(await fetchWithProgress(fileParts[index], (bytes) => {
+			loaded += bytes;
+			onProgress(index, fileParts.length, loaded);
+		}));
+		onProgress(index + 1, fileParts.length, loaded);
+	}
+	const merged = new Blob(blobs, { type: 'application/octet-stream' });
+	if (cache) {
+		await storeInCache(cache, cacheKey, merged);
+	}
+	return { blob: merged, fromCache: false };
+}
+
+function loadScript(src) {
+	return new Promise((resolve, reject) => {
+		const script = document.createElement('script');
+		script.src = src;
+		script.onload = resolve;
+		script.onerror = () => reject(new Error(`Failed to load ${src}`));
+		document.body.appendChild(script);
+	});
+}
+
+(function () {
+	const loaderScreen = document.getElementById('loader-screen');
+	const loaderNotice = document.getElementById('loader-notice');
+
+	function setStatus(id, text, state) {
+		const el = document.getElementById(id);
+		el.textContent = text;
+		el.classList.remove('pending');
+		if (state === 'done') {
+			el.style.color = '#00e676';
+		} else if (state === 'error') {
+			el.style.color = '#ff4444';
+		} else {
+			el.style.color = '#ffeb3b';
+		}
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		let message = 'An unknown error occurred.';
+		if (err instanceof Error) {
+			message = err.message;
+		} else if (typeof err === 'string') {
+			message = err;
+		}
+		loaderNotice.textContent = message;
+		loaderNotice.style.display = 'block';
+	}
+
+	function installBlobInterceptors(redirects) {
+		function resolveRedirect(url) {
+			const value = typeof url === 'string' ? url : (url && url.url) || String(url || '');
+			return redirects.find((item) => value.endsWith(item.name)) || null;
+		}
+
+		const originalFetch = window.fetch.bind(window);
+		window.fetch = function (input, init) {
+			const match = resolveRedirect(input);
+			return originalFetch(match ? match.url : input, init);
+		};
+
+		const originalOpen = XMLHttpRequest.prototype.open;
+		XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+			const match = resolveRedirect(url);
+			return originalOpen.call(this, method, match ? match.url : url, ...rest);
+		};
+	}
+
+	function startEngine(onStarted) {
+		const engine = new Engine(GODOT_CONFIG);
+		const missing = Engine.getMissingFeatures({
+			threads: GODOT_THREADS_ENABLED,
+		});
+
+		if (missing.length !== 0) {
+			if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+				let serviceWorkerRegistrationPromise;
+				try {
+					serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+				} catch (err) {
+					serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+				}
+				Promise.race([
+					serviceWorkerRegistrationPromise.then((registration) => {
+						if (registration != null) {
+							return Promise.reject(new Error('Service worker already exists.'));
+						}
+						return registration;
+					}).then(() => engine.installServiceWorker()),
+					new Promise((resolve) => {
+						setTimeout(() => resolve(), 2000);
+					}),
+				]).then(() => {
+					window.location.reload();
+				}).catch((err) => {
+					console.error('Error while registering service worker:', err);
+				});
+			} else {
+				const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+				setStatus('status-engine', 'unsupported browser', 'error');
+				displayFailureNotice(missingMsg + missing.join('\n'));
+			}
+			return;
+		}
+
+		setStatus('status-engine', 'starting...');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					setStatus('status-engine', `loading... ${Math.floor((current / total) * 100)}%`);
+				} else {
+					setStatus('status-engine', 'loading...');
+				}
+			},
+		}).then(() => {
+			setStatus('status-engine', 'done ✓', 'done');
+			loaderScreen.remove();
+			onStarted();
+		}, (err) => {
+			setStatus('status-engine', 'failed', 'error');
+			displayFailureNotice(err);
+		});
+	}
+
+	const pckSize = GODOT_CONFIG['fileSizes']['index.pck'];
+	let pckReady = false;
+	let lastPaint = 0;
+	setStatus('status-pck', `merging... 0/${PCK_PARTS}`);
+
+	mergeFiles(getParts('index.pck', PCK_PARTS), PCK_CACHE_KEY, (done, total, loaded) => {
+		const now = Date.now();
+		if (done < total && now - lastPaint < 100) {
+			return;
+		}
+		lastPaint = now;
+		setStatus('status-pck', `merging... ${done}/${total} · ${formatMB(loaded)} / ${formatMB(pckSize)}`);
+	}).then((result) => {
+		pckReady = true;
+		setStatus('status-pck', result.fromCache ? 'cached ✓' : 'done ✓', 'done');
+		const pckUrl = URL.createObjectURL(result.blob);
+		installBlobInterceptors([{ name: 'index.pck', url: pckUrl }]);
+		return loadScript('index.js').then(() => {
+			startEngine(() => URL.revokeObjectURL(pckUrl));
+		});
+	}).catch((err) => {
+		if (!pckReady) {
+			setStatus('status-pck', 'failed', 'error');
+		}
+		displayFailureNotice(err);
+	});
+}());
+		</script>
+	</body>
+</html>
+
