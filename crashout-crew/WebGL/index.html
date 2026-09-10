@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>CrashoutCrew</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+    /* Unity reads clientWidth/clientHeight and matches the drawing buffer to it,
+       so sizing the canvas in CSS is enough to make it fill the viewport. */
+    #unity-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      outline: none;
+    }
+    #unity-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 240px;
+      height: 6px;
+      background: #222;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #unity-loading-fill {
+      width: 0%;
+      height: 100%;
+      background: #fff;
+      transition: width .15s ease-out;
+    }
+    #unity-error {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 80%;
+      color: #fff;
+      font: 14px/1.5 system-ui, sans-serif;
+      white-space: pre-wrap;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="unity-loading"><div id="unity-loading-fill"></div></div>
+  <div id="unity-error"></div>
+
+  <script>
+    var canvas = document.querySelector("#unity-canvas");
+    var loading = document.querySelector("#unity-loading");
+    var fill = document.querySelector("#unity-loading-fill");
+    var errorBox = document.querySelector("#unity-error");
+
+    var config = {
+      dataUrl: "Build/WebGL.data",
+      frameworkUrl: "Build/WebGL.framework.js",
+      codeUrl: "Build/WebGL.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "Aggro Crab",
+      productName: "CrashoutCrew",
+      productVersion: "1.1.9",
+      showBanner: function (msg, type) {
+        if (type === "error") {
+          errorBox.style.display = "block";
+          errorBox.textContent = msg;
+        }
+      }
+    };
+
+    // ---- Split-file preloading ----
+    window.splitRoot = "../";          // path from this page up to the split_manifest.json root
+
+    function startGame() {
+      var script = document.createElement("script");
+      script.src = "Build/WebGL.loader.js";
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          fill.style.width = (100 * progress) + "%";
+        }).then(function () {
+          loading.style.display = "none";
+          canvas.focus();
+        }).catch(function (message) {
+          loading.style.display = "none";
+          errorBox.style.display = "block";
+          errorBox.textContent = message;
+        });
+      };
+      document.body.appendChild(script);
+    }
+
+    var splitScript = document.createElement("script");
+    splitScript.src = "split-loader.js";
+    splitScript.onload = function () {
+      if (!window.splitLoader) {
+        errorBox.style.display = "block";
+        errorBox.textContent = "split-loader.js failed to load.";
+        return;
+      }
+      window.splitLoader.preload(function (loaded, total) {
+        fill.style.width = (100 * loaded / total) + "%";
+      }).then(startGame).catch(function (err) {
+        loading.style.display = "none";
+        errorBox.style.display = "block";
+        errorBox.textContent = "Failed to load game data parts: " + (err && err.message ? err.message : err);
+      });
+    };
+    splitScript.onerror = function () {
+      errorBox.style.display = "block";
+      errorBox.textContent = "Could not load split-loader.js";
+    };
+    document.body.appendChild(splitScript);
+  </script>
+</body>
+</html>

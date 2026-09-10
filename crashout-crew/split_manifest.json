@@ -1,0 +1,47 @@
+﻿[
+    {
+        "original":  "WebGL/Build/WebGL.data",
+        "parts":  [
+                      "WebGL.data.part0001",
+                      "WebGL.data.part0002",
+                      "WebGL.data.part0003",
+                      "WebGL.data.part0004",
+                      "WebGL.data.part0005",
+                      "WebGL.data.part0006",
+                      "WebGL.data.part0007",
+                      "WebGL.data.part0008",
+                      "WebGL.data.part0009",
+                      "WebGL.data.part0010",
+                      "WebGL.data.part0011",
+                      "WebGL.data.part0012",
+                      "WebGL.data.part0013",
+                      "WebGL.data.part0014",
+                      "WebGL.data.part0015",
+                      "WebGL.data.part0016",
+                      "WebGL.data.part0017",
+                      "WebGL.data.part0018",
+                      "WebGL.data.part0019",
+                      "WebGL.data.part0020",
+                      "WebGL.data.part0021",
+                      "WebGL.data.part0022",
+                      "WebGL.data.part0023",
+                      "WebGL.data.part0024",
+                      "WebGL.data.part0025",
+                      "WebGL.data.part0026",
+                      "WebGL.data.part0027",
+                      "WebGL.data.part0028",
+                      "WebGL.data.part0029"
+                  ],
+        "size":  545802935
+    },
+    {
+        "original":  "WebGL/Build/WebGL.wasm",
+        "parts":  [
+                      "WebGL.wasm.part0001",
+                      "WebGL.wasm.part0002",
+                      "WebGL.wasm.part0003",
+                      "WebGL.wasm.part0004"
+                  ],
+        "size":  71440048
+    }
+]
