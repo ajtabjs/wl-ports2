@@ -1,0 +1,106 @@
+﻿[
+    {
+        "original":  "Build/Build.data",
+        "parts":  [
+                      "Build.data.part0001",
+                      "Build.data.part0002",
+                      "Build.data.part0003",
+                      "Build.data.part0004",
+                      "Build.data.part0005",
+                      "Build.data.part0006"
+                  ],
+        "size":  104845308
+    },
+    {
+        "original":  "Build/Build.wasm",
+        "parts":  [
+                      "Build.wasm.part0001",
+                      "Build.wasm.part0002",
+                      "Build.wasm.part0003",
+                      "Build.wasm.part0004",
+                      "Build.wasm.part0005",
+                      "Build.wasm.part0006",
+                      "Build.wasm.part0007",
+                      "Build.wasm.part0008",
+                      "Build.wasm.part0009"
+                  ],
+        "size":  166522228
+    },
+    {
+        "original":  "StreamingAssets/aa/Itch/StandaloneWindows/cosmica_assets_all.bundle",
+        "parts":  [
+                      "cosmica_assets_all.bundle.part0001",
+                      "cosmica_assets_all.bundle.part0002"
+                  ],
+        "size":  20227997
+    },
+    {
+        "original":  "StreamingAssets/aa/Itch/StandaloneWindows/cosmicubelny24_assets_all.bundle",
+        "parts":  [
+                      "cosmicubelny24_assets_all.bundle.part0001",
+                      "cosmicubelny24_assets_all.bundle.part0002"
+                  ],
+        "size":  20576612
+    },
+    {
+        "original":  "StreamingAssets/aa/Itch/StandaloneWindows/hanami_assets_all.bundle",
+        "parts":  [
+                      "hanami_assets_all.bundle.part0001",
+                      "hanami_assets_all.bundle.part0002"
+                  ],
+        "size":  21830252
+    },
+    {
+        "original":  "StreamingAssets/aa/Itch/StandaloneWindows/kamurocho_assets_all.bundle",
+        "parts":  [
+                      "kamurocho_assets_all.bundle.part0001",
+                      "kamurocho_assets_all.bundle.part0002"
+                  ],
+        "size":  32729790
+    },
+    {
+        "original":  "StreamingAssets/aa/Itch/StandaloneWindows/pawsnclaws_assets_all.bundle",
+        "parts":  [
+                      "pawsnclaws_assets_all.bundle.part0001",
+                      "pawsnclaws_assets_all.bundle.part0002"
+                  ],
+        "size":  28493197
+    },
+    {
+        "original":  "StreamingAssets/aa/WebGL/defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle",
+        "parts":  [
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0001",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0002",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0003",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0004",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0005",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0006",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0007",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0008",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0009",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0010",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0011",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0012",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0013",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0014",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0015",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0016",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0017",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0018",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0019",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0020",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0021",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0022",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0023",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0024",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0025",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0026",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0027",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0028",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0029",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0030",
+                      "defaultlocalgroup_assets__79b8d63e8040d9c14f91d413ee89d5f0.bundle.part0031"
+                  ],
+        "size":  571439442
+    }
+]
