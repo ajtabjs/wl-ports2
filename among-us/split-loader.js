@@ -71,7 +71,7 @@
       keys[originalPath] = entry;
     });
 
-    var tasks = files.map(function (f) {
+    function fetchPart(f) {
       return nativeFetch(f.url).then(function (resp) {
         if (!resp.ok) throw new Error("Failed to fetch part: " + f.url + " (" + resp.status + ")");
         return resp.arrayBuffer();
@@ -84,9 +84,21 @@
       }).catch(function (err) {
         failures.push((err && err.message) ? err.message : String(err));
       });
-    });
+    }
 
-    return Promise.all(tasks).then(function () {
+    var concurrency = 2;
+    var next = 0;
+    function runNext() {
+      if (next >= files.length) return Promise.resolve();
+      var f = files[next++];
+      return fetchPart(f).then(runNext);
+    }
+    var slots = [];
+    for (var i = 0; i < concurrency && i < files.length; i++) {
+      slots.push(runNext());
+    }
+
+    return Promise.all(slots).then(function () {
       if (failures.length > 0) {
         throw new Error("Failed to load " + failures.length + " of " + total +
           " game data part(s):\n" + failures.join("\n"));
