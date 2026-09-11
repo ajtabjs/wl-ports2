@@ -5,39 +5,125 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Unity WebGL Player | Among Us</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        background: #000;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #unity-canvas {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+      }
+
+      #loader-screen {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Figtree', Arial, sans-serif;
+        z-index: 999;
+      }
+
+      #loader-screen h1 {
+        color: #fff;
+        font-size: 2rem;
+        margin-bottom: 24px;
+        letter-spacing: 0.05em;
+        animation: rainbow-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes rainbow-pulse {
+        0% { color: #ff0000; transform: scale(1); }
+        16.66% { color: #ff8800; transform: scale(1.05); }
+        33.33% { color: #ffff00; transform: scale(1); }
+        50% { color: #00ff00; transform: scale(1.05); }
+        66.66% { color: #0088ff; transform: scale(1); }
+        83.33% { color: #8800ff; transform: scale(1.05); }
+        100% { color: #ff0000; transform: scale(1); }
+      }
+
+      .file-row {
+        display: flex;
+        gap: 8px;
+        font-size: 0.95rem;
+        margin: 4px 0;
+      }
+
+      .file-name {
+        color: #cf4242;
+      }
+
+      .file-status {
+        color: #ffeb3b;
+      }
+
+      .file-status.pending {
+        color: #888;
+      }
+
+      #progress-bar-container {
+        margin-top: 16px;
+        width: 300px;
+        height: 6px;
+        background: #222;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      #progress-bar {
+        width: 0%;
+        height: 100%;
+        background: #87cefa;
+        border-radius: 3px;
+        transition: width 0.15s ease;
+      }
+
+      #unity-warning {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+      }
+    </style>
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=540 tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
-        </div>
+
+    <div id="loader-screen">
+      <h1>loading...</h1>
+      <p style="margin-bottom: 24px;color:white;"> no meme on this loader :(</p>
+      <div class="file-row">
+        <span class="file-name">Build.data:</span>
+        <span class="file-status pending" id="status-data">waiting...</span>
       </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-webgl-logo"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Among Us</div>
+      <div class="file-row">
+        <span class="file-name">Build.wasm:</span>
+        <span class="file-status pending" id="status-wasm">waiting...</span>
+      </div>
+      <div id="progress-bar-container">
+        <div id="progress-bar"></div>
       </div>
     </div>
-    <script>
 
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+    <div id="unity-warning"></div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <script>
       var warningBanner = document.querySelector("#unity-warning");
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
       function unityShowBanner(msg, type) {
         function updateBannerVisibility() {
           warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
@@ -45,9 +131,9 @@
         var div = document.createElement('div');
         div.innerHTML = msg;
         warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        if (type == 'error') div.style = 'background: red; padding: 10px; font-family: Figtree, sans-serif;';
         else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px; font-family: Figtree, sans-serif;';
           setTimeout(function() {
             warningBanner.removeChild(div);
             updateBannerVisibility();
@@ -55,6 +141,29 @@
         }
         updateBannerVisibility();
       }
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+        unityShowBanner('WebGL builds are not supported on mobile devices.');
+      }
+
+      function setStatus(id, text, done) {
+        var el = document.getElementById(id);
+        el.textContent = text;
+        el.classList.remove('pending');
+        if (done) el.style.color = '#00e676';
+        else el.style.color = '#ffeb3b';
+      }
+
+      function setProgress(pct) {
+        document.getElementById('progress-bar').style.width = pct + '%';
+      }
+
+      setStatus('status-data', 'waiting...');
+      setStatus('status-wasm', 'waiting...');
 
       var buildUrl = "Build";
       var loaderUrl = buildUrl + "/Build.loader.js";
@@ -69,81 +178,57 @@
         showBanner: unityShowBanner,
       };
 
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
-      // If you would like all file writes inside Unity Application.persistentDataPath
-      // directory to automatically persist so that the contents are remembered when
-      // the user revisits the site the next time, uncomment the following line:
-      // config.autoSyncPersistentDataPath = true;
-      // This autosyncing is currently not the default behavior to avoid regressing
-      // existing user projects that might rely on the earlier manual
-      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-      // expected to change.
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        container.className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-
-        canvas.style.width = "960px";
-        canvas.style.height = "540px";
-      }
-
-      loadingBar.style.display = "block";
-
-      // ---- Split-file preloading ----
-      window.splitRoot = "";           // path from this page up to the split_manifest.json root
+      window.splitRoot = "";
 
       function startGame() {
         var script = document.createElement("script");
         script.src = loaderUrl;
-        script.onload = () => {
-          createUnityInstance(canvas, config, (progress) => {
-            progressBarFull.style.width = 100 * progress + "%";
-                }).then((unityInstance) => {
-                  loadingBar.style.display = "none";
-                  fullscreenButton.onclick = () => {
-                    unityInstance.SetFullscreen(1);
-                  };
-                }).catch((message) => {
-                  alert(message);
-                });
-              };
+        script.onload = function () {
+          createUnityInstance(document.querySelector("#unity-canvas"), config, function (progress) {
+            if (progress < 0.5) {
+              var pct = Math.round(progress * 200);
+              setStatus('status-data', 'loading... ' + pct + '%');
+            } else {
+              setStatus('status-data', 'done \u2713', true);
+              if (progress < 1) {
+                var pct = Math.round((progress - 0.5) * 200);
+                setStatus('status-wasm', 'loading... ' + pct + '%');
+              }
+            }
+            if (progress >= 1) {
+              setStatus('status-wasm', 'done \u2713', true);
+            }
+            setProgress(Math.round(progress * 100));
+          }).then(function (unityInstance) {
+            setTimeout(function () {
+              document.getElementById('loader-screen').style.display = 'none';
+              document.getElementById('unity-canvas').style.display = 'block';
+            }, 500);
+          }).catch(function (message) {
+            document.getElementById('loader-screen').innerHTML =
+              '<h1 style="color:#ff4444">Error loading game.<br><small style="font-size:0.8rem">' + message + '</small></h1>';
+          });
+        };
         document.body.appendChild(script);
       }
 
       var splitScript = document.createElement("script");
       splitScript.src = "split-loader.js";
-      splitScript.onload = () => {
+      splitScript.onload = function () {
         if (!window.splitLoader) {
           alert("split-loader.js failed to load.");
           return;
         }
-        window.splitLoader.preload((loaded, total) => {
-          progressBarFull.style.width = 100 * loaded / total + "%";
-        }).then(startGame).catch((err) => {
+        setStatus('status-data', 'loading... 0%');
+        window.splitLoader.preload(function (loaded, total) {
+          var pct = Math.round(loaded / total * 100);
+          setStatus('status-data', 'loading... ' + pct + '%');
+          setProgress(pct);
+        }).then(startGame).catch(function (err) {
           console.error("Failed to load game data parts:", err);
         });
       };
-      splitScript.onerror = () => {
+      splitScript.onerror = function () {
         alert("Could not load split-loader.js");
       };
       document.body.appendChild(splitScript);
