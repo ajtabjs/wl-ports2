@@ -13,8 +13,19 @@
     return i >= 0 ? p.substring(0, i) : "";
   }
 
+  function safePathname(urlStr) {
+    try {
+      return new URL(urlStr, location.href).pathname;
+    } catch (e) {
+      if (/^https?:\/\//i.test(urlStr)) {
+        try { return new URL(urlStr).pathname; } catch (e2) {}
+      }
+      return urlStr.startsWith("/") ? urlStr : "/" + urlStr;
+    }
+  }
+
   function resolve(urlStr) {
-    return new URL(urlStr, location.href).pathname;
+    return safePathname(urlStr);
   }
 
   function mimeFor(original) {
@@ -172,7 +183,7 @@
     var blobInfo = null;
     try {
       var u = (input instanceof Request) ? input.url : String(input);
-      var p = new URL(u, location.href).pathname;
+      var p = safePathname(u);
 
       for (var key in blobByPath) {
         if (p === key || p.endsWith("/" + key.replace(/^\//, ""))) {
