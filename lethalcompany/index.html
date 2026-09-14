@@ -39,7 +39,10 @@
           return URL.createObjectURL(blob);
         }
         const buffers = await Promise.all(
-          fileParts.map(part => fetch(part).then(r => r.arrayBuffer()))
+          fileParts.map(part => fetch(part).then(async r => {
+            if (!r.ok) throw new Error("Failed to fetch " + part + ": " + r.status);
+            return r.arrayBuffer();
+          }))
         );
         const mergedBlob = new Blob(buffers);
         await cache.put(cacheKey, new Response(mergedBlob));
@@ -49,7 +52,7 @@
       function getParts(file, start, end, pad) {
         let parts = [];
         for (let i = start; i <= end; i++) {
-          parts.push(file + "." + String(i).padStart(pad, "0"));
+          parts.push(file + ".part" + String(i).padStart(pad, "0"));
         }
         return parts;
       }
@@ -109,9 +112,18 @@
       loadingBar.style.display = "block";
 
       (async () => {
+        // Clear poisoned cache from before the .part filename fix
+        try {
+          const cache = await caches.open("lethalcache");
+          await Promise.all([
+            cache.delete("build.data"),
+            cache.delete("build.wasm"),
+          ]);
+        } catch (e) { console.warn("cache cleanup failed", e); }
+
         var [dataUrl, wasmUrl] = await Promise.all([
-          mergeFiles(getParts("Build/build.data", 1, 18, 2), "build.data"),
-          mergeFiles(getParts("Build/build.wasm", 1, 5, 1), "build.wasm"),
+          mergeFiles(getParts("Build/build.data", 1, 18, 2), "build.data.v2"),
+          mergeFiles(getParts("Build/build.wasm", 1, 5, 1), "build.wasm.v2"),
         ]);
 
         var originalOpen = XMLHttpRequest.prototype.open;
