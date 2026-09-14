@@ -31,20 +31,37 @@
       window.WispRelayWSState = { sock: null, recvPtr: 0, sid: 0 };
     </script>
     <script>
-      async function mergeFiles(fileParts, cacheKey) {
+      async function mergeFiles(fileParts, cacheKey, onProgress) {
         const cache = await caches.open("lethalcache");
         const cachedResponse = await cache.match(cacheKey);
         if (cachedResponse) {
           const blob = await cachedResponse.blob();
+          if (onProgress) onProgress(fileParts.length, fileParts.length);
           return URL.createObjectURL(blob);
         }
-        const buffers = await Promise.all(
-          fileParts.map(part => fetch(part).then(async r => {
+        const buffers = new Array(fileParts.length);
+        let completed = 0;
+        let nextIndex = 0;
+        const CONCURRENCY = 1;
+        async function worker() {
+          while (true) {
+            const i = nextIndex++;
+            if (i >= fileParts.length) return;
+            const part = fileParts[i];
+            const r = await fetch(part);
             if (!r.ok) throw new Error("Failed to fetch " + part + ": " + r.status);
-            return r.arrayBuffer();
-          }))
-        );
+            buffers[i] = await r.arrayBuffer();
+            completed++;
+            if (onProgress) onProgress(completed, fileParts.length);
+          }
+        }
+        const workers = [];
+        for (let w = 0; w < Math.min(CONCURRENCY, fileParts.length); w++) {
+          workers.push(worker());
+        }
+        await Promise.all(workers);
         const mergedBlob = new Blob(buffers);
+        buffers.fill(null);
         await cache.put(cacheKey, new Response(mergedBlob));
         return URL.createObjectURL(mergedBlob);
       }
@@ -112,7 +129,6 @@
       loadingBar.style.display = "block";
 
       (async () => {
-        // Clear poisoned cache from before the .part filename fix
         try {
           const cache = await caches.open("lethalcache");
           await Promise.all([
@@ -121,9 +137,21 @@
           ]);
         } catch (e) { console.warn("cache cleanup failed", e); }
 
+        var dataDone = 0, dataTotal = 18, wasmDone = 0, wasmTotal = 5;
+        function updateDownloadProgress() {
+          var done = dataDone + wasmDone;
+          var total = dataTotal + wasmTotal;
+          progressBarFull.style.width = (100 * done / total) + "%";
+        }
+        updateDownloadProgress();
+
         var [dataUrl, wasmUrl] = await Promise.all([
-          mergeFiles(getParts("Build/build.data", 1, 18, 2), "build.data.v2"),
-          mergeFiles(getParts("Build/build.wasm", 1, 5, 1), "build.wasm.v2"),
+          mergeFiles(getParts("Build/build.data", 1, 18, 2), "build.data.v2", (done, total) => {
+            dataDone = done; dataTotal = total; updateDownloadProgress();
+          }),
+          mergeFiles(getParts("Build/build.wasm", 1, 5, 1), "build.wasm.v2", (done, total) => {
+            wasmDone = done; wasmTotal = total; updateDownloadProgress();
+          }),
         ]);
 
         var originalOpen = XMLHttpRequest.prototype.open;
