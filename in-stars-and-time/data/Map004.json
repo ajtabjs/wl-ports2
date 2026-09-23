@@ -1,0 +1,6 @@
+{
+"autoplayBgm":false,"autoplayBgs":false,"battleback1Name":"start","battleback2Name":"","bgm":{"name":"","pan":0,"pitch":100,"volume":90},"bgs":{"name":"","pan":0,"pitch":100,"volume":90},"disableDashing":false,"displayName":"","encounterList":[],"encounterStep":30,"height":1,"note":"its for the early acts,\nlast act will have a copy\nof whatever i do","parallaxLoopX":true,"parallaxLoopY":true,"parallaxName":"parallax_FLOOR1","parallaxShow":true,"parallaxSx":1,"parallaxSy":1,"scrollType":0,"specifyBattleback":true,"tilesetId":5,"width":1,
+"data":[0,0,0,0,0,0],
+"events":[
+]
+}
