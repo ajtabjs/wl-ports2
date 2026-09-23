@@ -1,238 +1,264 @@
-<!DOCTYPE html>
-<html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | Among Us</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,user-scalable=no">
+  <title>Among Us Web Beta</title>
+  <style>
+    html,body,#game{width:100%;height:100%;margin:0;overflow:hidden;background:#000}
+    #game{position:fixed;inset:0}
+    #unity-canvas{display:block;width:100%;height:100%;border:0;outline:0;background:#000}
+    #loader{position:fixed;inset:0;z-index:2;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial,sans-serif}
+    #loader-box{width:min(440px,82vw);text-align:center}
+    #bar{height:12px;margin-top:12px;overflow:hidden;border:1px solid #777;border-radius:8px}
+    #fill{width:0;height:100%;background:#35d0ba;transition:width .12s linear}
+    #error{margin-top:12px;color:#ff6961;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div id="game"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
+  <div id="loader"><div id="loader-box"><div id="status">Loading game files…</div><div id="bar"><div id="fill"></div></div><div id="error"></div></div></div>
+  <script>
+    const JSDELIVR = "https://cdn.jsdelivr.net/gh/wasmdotrip/AmongUsPort@main";
+    const BUILD = JSDELIVR + "/Build";
+    const STREAMING_ASSETS = JSDELIVR + "/StreamingAssets";
+    const LARGE_BUNDLE = "defaultlocalgroup_assets__3b418cde0fb1f79ef4bf74d7b77f3e5b.bundle";
 
-      body {
-        background: #000;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
+    const canvas = document.getElementById("unity-canvas");
+    const loader = document.getElementById("loader");
+    const statusText = document.getElementById("status");
+    const fill = document.getElementById("fill");
+    const errorText = document.getElementById("error");
+    const browserFetch = window.fetch.bind(window);
+    const BrowserXMLHttpRequest = window.XMLHttpRequest;
+    let assembledBundleUrl = null;
 
-      #unity-canvas {
-        display: none;
-        width: 100vw;
-        height: 100vh;
-        background: #000;
-      }
+    function updateProgress(percent, message) {
+      fill.style.width = Math.max(0, Math.min(100, percent)) + "%";
+      if (message) statusText.textContent = message;
+    }
 
-      #loader-screen {
-        position: fixed;
-        inset: 0;
-        background: #000;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        font-family: 'Figtree', Arial, sans-serif;
-        z-index: 999;
-      }
+    const CACHE_DB = "amongus-web-cache";
+    const CACHE_STORE = "files";
+    let cacheDbPromise = null;
 
-      #loader-screen h1 {
-        color: #fff;
-        font-size: 2rem;
-        margin-bottom: 24px;
-        letter-spacing: 0.05em;
-        animation: rainbow-pulse 2s ease-in-out infinite;
-      }
-
-      @keyframes rainbow-pulse {
-        0% { color: #ff0000; transform: scale(1); }
-        16.66% { color: #ff8800; transform: scale(1.05); }
-        33.33% { color: #ffff00; transform: scale(1); }
-        50% { color: #00ff00; transform: scale(1.05); }
-        66.66% { color: #0088ff; transform: scale(1); }
-        83.33% { color: #8800ff; transform: scale(1.05); }
-        100% { color: #ff0000; transform: scale(1); }
-      }
-
-      .file-row {
-        display: flex;
-        gap: 8px;
-        font-size: 0.95rem;
-        margin: 4px 0;
-      }
-
-      .file-name {
-        color: #cf4242;
-      }
-
-      .file-status {
-        color: #ffeb3b;
-      }
-
-      .file-status.pending {
-        color: #888;
-      }
-
-      #progress-bar-container {
-        margin-top: 16px;
-        width: 300px;
-        height: 6px;
-        background: #222;
-        border-radius: 3px;
-        overflow: hidden;
-      }
-
-      #progress-bar {
-        width: 0%;
-        height: 100%;
-        background: #87cefa;
-        border-radius: 3px;
-        transition: width 0.15s ease;
-      }
-
-      #unity-warning {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-      }
-    </style>
-  </head>
-  <body>
-
-    <div id="loader-screen">
-      <h1>loading...</h1>
-      <p style="margin-bottom: 24px;color:white;"> no meme on this loader :(</p>
-      <div class="file-row">
-        <span class="file-name">Build.data:</span>
-        <span class="file-status pending" id="status-data">waiting...</span>
-      </div>
-      <div class="file-row">
-        <span class="file-name">Build.wasm:</span>
-        <span class="file-status pending" id="status-wasm">waiting...</span>
-      </div>
-      <div id="progress-bar-container">
-        <div id="progress-bar"></div>
-      </div>
-    </div>
-
-    <div id="unity-warning"></div>
-    <canvas id="unity-canvas" tabindex="-1"></canvas>
-    <script>
-      var warningBanner = document.querySelector("#unity-warning");
-
-      function unityShowBanner(msg, type) {
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-        }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px; font-family: Figtree, sans-serif;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px; font-family: Figtree, sans-serif;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
-      }
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        unityShowBanner('WebGL builds are not supported on mobile devices.');
-      }
-
-      function setStatus(id, text, done) {
-        var el = document.getElementById(id);
-        el.textContent = text;
-        el.classList.remove('pending');
-        if (done) el.style.color = '#00e676';
-        else el.style.color = '#ffeb3b';
-      }
-
-      function setProgress(pct) {
-        document.getElementById('progress-bar').style.width = pct + '%';
-      }
-
-      setStatus('status-data', 'waiting...');
-      setStatus('status-wasm', 'waiting...');
-
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Build.loader.js";
-      var config = {
-        dataUrl: buildUrl + "/Build.data",
-        frameworkUrl: buildUrl + "/Build.framework.js",
-        codeUrl: buildUrl + "/Build.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "Innersloth",
-        productName: "Among Us",
-        productVersion: "2026.6.5",
-        showBanner: unityShowBanner,
-      };
-
-      window.splitRoot = "";
-
-      function startGame() {
-        var script = document.createElement("script");
-        script.src = loaderUrl;
-        script.onload = function () {
-          createUnityInstance(document.querySelector("#unity-canvas"), config, function (progress) {
-            if (progress < 0.5) {
-              var pct = Math.round(progress * 200);
-              setStatus('status-data', 'loading... ' + pct + '%');
-            } else {
-              setStatus('status-data', 'done \u2713', true);
-              if (progress < 1) {
-                var pct = Math.round((progress - 0.5) * 200);
-                setStatus('status-wasm', 'loading... ' + pct + '%');
-              }
-            }
-            if (progress >= 1) {
-              setStatus('status-wasm', 'done \u2713', true);
-            }
-            setProgress(Math.round(progress * 100));
-          }).then(function (unityInstance) {
-            setTimeout(function () {
-              document.getElementById('loader-screen').style.display = 'none';
-              document.getElementById('unity-canvas').style.display = 'block';
-            }, 500);
-          }).catch(function (message) {
-            document.getElementById('loader-screen').innerHTML =
-              '<h1 style="color:#ff4444">Error loading game.<br><small style="font-size:0.8rem">' + message + '</small></h1>';
-          });
+    function openCacheDb() {
+      if (cacheDbPromise) return cacheDbPromise;
+      cacheDbPromise = new Promise((resolve) => {
+        const request = indexedDB.open(CACHE_DB, 1);
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore(CACHE_STORE);
         };
-        document.body.appendChild(script);
-      }
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => resolve(null);
+      });
+      return cacheDbPromise;
+    }
 
-      var splitScript = document.createElement("script");
-      splitScript.src = "split-loader.js";
-      splitScript.onload = function () {
-        if (!window.splitLoader) {
-          alert("split-loader.js failed to load.");
-          return;
+    async function cacheGet(key) {
+      const db = await openCacheDb();
+      if (!db) return undefined;
+      return new Promise((resolve) => {
+        const tx = db.transaction(CACHE_STORE, "readonly");
+        const request = tx.objectStore(CACHE_STORE).get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => resolve(undefined);
+      });
+    }
+
+    async function cacheSet(key, value) {
+      const db = await openCacheDb();
+      if (!db) return;
+      return new Promise((resolve) => {
+        const tx = db.transaction(CACHE_STORE, "readwrite");
+        tx.objectStore(CACHE_STORE).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+    }
+
+    function externalFetch(url, resource, options) {
+      const sourceHeaders = options && options.headers
+        ? options.headers
+        : (typeof Request !== "undefined" && resource instanceof Request ? resource.headers : undefined);
+      const headers = new Headers(sourceHeaders || undefined);
+      headers.delete("Authorization");
+      headers.delete("Proxy-Authorization");
+      headers.delete("Content-Type");
+      const cleanOptions = Object.assign({}, options || {}, {
+        method: (options && options.method) || (typeof Request !== "undefined" && resource instanceof Request ? resource.method : "GET"),
+        headers: headers,
+        credentials: "omit"
+      });
+      return browserFetch(url, cleanOptions);
+    }
+
+    async function fetchWithFallback(resource, options) {
+      const url = typeof resource === "string" ? resource : resource.url;
+      const rewritten = rewriteToServer(url, false);
+      if (rewritten !== url) return browserFetch(rewritten, options);
+      return url.startsWith(JSDELIVR)
+        ? externalFetch(url, resource, options)
+        : browserFetch(resource, options);
+    }
+
+    async function combineParts(baseUrl, count, mimeType, numberWidth = 0, onPart) {
+      let finished = 0;
+      const buffers = await Promise.all(Array.from({length:count}, async (_, index) => {
+        const suffix = String(index + 1).padStart(numberWidth, "0");
+        const url = baseUrl + ".part" + suffix;
+        const cached = await cacheGet(url);
+        if (cached) {
+          finished++;
+          if (onPart) onPart(finished, count);
+          return cached;
         }
-        setStatus('status-data', 'loading... 0%');
-        window.splitLoader.preload(function (loaded, total) {
-          var pct = Math.round(loaded / total * 100);
-          setStatus('status-data', 'loading... ' + pct + '%');
-          setProgress(pct);
-        }).then(startGame).catch(function (err) {
-          console.error("Failed to load game data parts:", err);
-        });
-      };
-      splitScript.onerror = function () {
-        alert("Could not load split-loader.js");
-      };
-      document.body.appendChild(splitScript);
+        const response = await fetchWithFallback(url);
+        if (!response.ok) throw new Error("Failed to load " + url + " (HTTP " + response.status + ")");
+        const buffer = await response.arrayBuffer();
+        await cacheSet(url, buffer);
+        finished++;
+        if (onPart) onPart(finished, count);
+        return buffer;
+      }));
+      return new Blob(buffers, {type:mimeType});
+    }
 
-    </script>
-  </body>
+    window.fetch = function(resource, options) {
+      const url = typeof resource === "string" ? resource : resource.url;
+      const cleanUrl = url.split("?")[0].split("#")[0];
+      if (assembledBundleUrl && cleanUrl.endsWith("/" + LARGE_BUNDLE)) {
+        return browserFetch(assembledBundleUrl, options);
+      }
+      return fetchWithFallback(resource, options);
+    };
+
+    window.XMLHttpRequest = function() {
+      const xhr = new BrowserXMLHttpRequest();
+      const originalOpen = xhr.open;
+      const originalSetRequestHeader = xhr.setRequestHeader;
+      let externalGet = false;
+      xhr.open = function(method, url) {
+        let target = String(url);
+        const cleanUrl = target.split("?")[0].split("#")[0];
+        if (assembledBundleUrl && cleanUrl.endsWith("/" + LARGE_BUNDLE)) {
+          target = assembledBundleUrl;
+        } else {
+          target = rewriteToServer(target, false);
+        }
+        externalGet = /^(GET|HEAD)$/i.test(method) &&
+          (target.startsWith(JSDELIVR) || target.startsWith("blob:"));
+        const args = Array.prototype.slice.call(arguments);
+        args[1] = target;
+        return originalOpen.apply(xhr, args);
+      };
+      xhr.setRequestHeader = function(name, value) {
+        if (externalGet) {
+          const header = String(name).toLowerCase();
+          if (header !== "accept" && header !== "accept-language" && header !== "range") return;
+        }
+        return originalSetRequestHeader.call(xhr, name, value);
+      };
+      return xhr;
+    };
+    window.XMLHttpRequest.prototype = BrowserXMLHttpRequest.prototype;
+
+    const overrideServer = new URLSearchParams(location.search).get("server");
+    let serverReplacement = null;
+    if (overrideServer) {
+      try { serverReplacement = new URL(overrideServer); } catch (e) {}
+    }
+
+    function toHttpProtocol(protocol) {
+      if (protocol === "ws:") return "http:";
+      if (protocol === "wss:") return "https:";
+      return protocol;
+    }
+
+    function toWsProtocol(protocol) {
+      if (protocol === "http:") return "ws:";
+      if (protocol === "https:") return "wss:";
+      return protocol;
+    }
+
+    function rewriteToServer(url, wantWs) {
+      if (!serverReplacement) return url;
+      let target;
+      try { target = new URL(url, location.href); } catch (e) { return url; }
+      if (target.protocol === "blob:") return url;
+      if (target.href.startsWith(JSDELIVR)) return url;
+      target.protocol = wantWs ? toWsProtocol(serverReplacement.protocol) : toHttpProtocol(serverReplacement.protocol);
+      target.host = serverReplacement.host;
+      return target.toString();
+    }
+
+    if (serverReplacement) {
+      const BrowserWebSocket = window.WebSocket;
+      window.WebSocket = function(url, protocols) {
+        const target = rewriteToServer(url, true);
+        return protocols !== undefined
+          ? new BrowserWebSocket(target, protocols)
+          : new BrowserWebSocket(target);
+      };
+      window.WebSocket.prototype = BrowserWebSocket.prototype;
+    }
+
+    async function loadUnityLoader() {
+      const url = BUILD + "/AmongUsWeb.loader.js";
+      let source = await cacheGet(url);
+      if (!source) {
+        const response = await fetchWithFallback(url);
+        if (!response.ok) throw new Error("Failed to load Unity loader (HTTP " + response.status + ")");
+        source = await response.text();
+        await cacheSet(url, source);
+      }
+      const script = document.createElement("script");
+      script.src = URL.createObjectURL(new Blob([source], {type:"text/javascript"}));
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Unity loader could not be executed."));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function start() {
+      updateProgress(1, "Downloading game files…");
+      const loaderPromise = loadUnityLoader();
+      const dataPromise = combineParts(BUILD + "/AmongUsWeb.data", 6, "application/octet-stream", 0,
+        (done,total) => updateProgress(2 + done / total * 18, "Downloading game data…"));
+      const wasmPromise = combineParts(BUILD + "/AmongUsWeb.wasm", 9, "application/wasm", 0,
+        (done,total) => updateProgress(20 + done / total * 15, "Downloading game code…"));
+      const bundlePromise = combineParts(
+        STREAMING_ASSETS + "/aa/WebGL/" + LARGE_BUNDLE,
+        34,
+        "application/octet-stream",
+        2,
+        (done,total) => updateProgress(35 + done / total * 35, "Downloading game assets…")
+      );
+      const [dataBlob, wasmBlob, bundleBlob] = await Promise.all([dataPromise, wasmPromise, bundlePromise, loaderPromise]);
+      assembledBundleUrl = URL.createObjectURL(bundleBlob);
+
+      const config = {
+        dataUrl:URL.createObjectURL(dataBlob),
+        frameworkUrl:BUILD + "/AmongUsWeb.framework.js",
+        codeUrl:URL.createObjectURL(wasmBlob),
+        streamingAssetsUrl:STREAMING_ASSETS,
+        companyName:"Innersloth",
+        productName:"Among Us",
+        productVersion:"2026.6.5",
+        showBanner:(message,type) => type === "error" ? errorText.textContent = message : console.warn(message)
+      };
+
+      updateProgress(70, "Starting game…");
+      await createUnityInstance(canvas, config, value => updateProgress(70 + value * 30, "Starting game…"));
+      loader.style.display = "none";
+    }
+
+    start().catch(error => {
+      statusText.textContent = "Unable to start the game.";
+      errorText.textContent = error && error.message ? error.message : String(error);
+      console.error(error);
+    });
+  </script>
+</body>
 </html>
