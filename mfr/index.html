@@ -219,10 +219,14 @@
   </div>
 
   <script>
-      // Register the service worker.
-      if (navigator.serviceWorker) {
-          if (!navigator.serviceWorker.controller) {
-              navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'all' });
+      // A service worker must be served from the same origin as the document.
+      // The Caesium loader runs this page in an iframe while the base URL points
+      // at jsDelivr, so the worker URL would otherwise be cross-origin.
+      if (navigator.serviceWorker && window.self === window.top) {
+          const serviceWorkerUrl = new URL('./service-worker.js', document.baseURI);
+          if (serviceWorkerUrl.origin === window.location.origin && !navigator.serviceWorker.controller) {
+              navigator.serviceWorker.register(serviceWorkerUrl, { updateViaCache: 'all' })
+                  .catch((error) => console.warn('Service worker registration failed:', error));
           }
       }
   </script>
