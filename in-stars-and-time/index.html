@@ -52,9 +52,46 @@
         ) {
             value = addParam(value);
         }
+        if (
+            this instanceof HTMLImageElement &&
+            name.toLowerCase() === "src"
+        ) {
+            try {
+                const abs = new URL(value, document.baseURI || location.href);
+                if (abs.origin !== location.origin && !this.crossOrigin) {
+                    originalSetAttribute.call(this, "crossorigin", "anonymous");
+                }
+            } catch {}
+        }
 
         return originalSetAttribute.call(this, name, value);
     };
+
+    // Prevent canvas taint: images served cross-origin (jsDelivr <base>)
+    // must load with CORS so Bitmap.getPixel()/getImageData() stays usable.
+    // jsDelivr sends `Access-Control-Allow-Origin: *`, so `anonymous` succeeds.
+    try {
+        const imgSrcDescriptor = Object.getOwnPropertyDescriptor(
+            HTMLImageElement.prototype,
+            "src"
+        );
+        if (imgSrcDescriptor && imgSrcDescriptor.set) {
+            Object.defineProperty(HTMLImageElement.prototype, "src", {
+                get() {
+                    return imgSrcDescriptor.get.call(this);
+                },
+                set(value) {
+                    try {
+                        const abs = new URL(value, document.baseURI || location.href);
+                        if (abs.origin !== location.origin && !this.crossOrigin) {
+                            this.crossOrigin = "anonymous";
+                        }
+                    } catch {}
+                    return imgSrcDescriptor.set.call(this, value);
+                }
+            });
+        }
+    } catch {}
 })();
         </script>
         <script>
