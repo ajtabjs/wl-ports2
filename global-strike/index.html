@@ -5,63 +5,122 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Global Strike</title>
-    <link rel="stylesheet" crossorigin href="./assets/index-BLkIhPSX.css" />
+    <link rel="stylesheet" crossorigin href="./assets/index-BLkIhPSX.css">
     <script>
-      async function mergeFiles(fileParts, cacheKey) {
-        const cache = await caches.open("crackers");
-        const cachedResponse = await cache.match(cacheKey);
-        if (cachedResponse) {
-          const blob = await cachedResponse.blob();
-          return URL.createObjectURL(blob);
-        }
-        const buffers = await Promise.all(
-          fileParts.map(part => fetch(part).then(r => {
-            if (!r.ok) throw new Error("Failed to fetch " + part);
-            return r.arrayBuffer();
-          }))
-        );
-        const mergedBlob = new Blob(buffers, { type: "application/javascript" });
-        await cache.put(cacheKey, new Response(mergedBlob, { headers: { "Content-Type": "application/javascript" } }));
-        return URL.createObjectURL(mergedBlob);
-      }
+      (function () {
+        var BUNDLE = "assets/index-C0nTH1JV.js";
+        var PARTS = [BUNDLE + ".part0", BUNDLE + ".part1"];
+        var TOTAL_SIZE = 26596333;
+        var CACHE_NAME = "global-strike-split";
+        var CACHE_KEY = BUNDLE;
+        var ASSET_SITE = /,\s*import\.meta\.url\s*\)/g;
 
-      function getParts(file, start, end) {
-        let parts = [];
-        for (let i = start; i <= end; i++) {
-          parts.push(file + ".part" + i);
-        }
-        return parts;
-      }
+        var statusEl = document.getElementById("status");
+        var bootStatusEl = document.getElementById("boot-status");
 
-      async function loadGame() {
-        const mainJs = "assets/index-BdUnKe1Y.js";
-        const statusEl = document.getElementById("status");
-        const bootStatusEl = document.getElementById("boot-status");
-        try {
-          if (statusEl) statusEl.textContent = "Loading game files…";
-          if (bootStatusEl) bootStatusEl.textContent = "Loading game files…";
-          const mainUrl = await mergeFiles(getParts(mainJs, 0, 1), mainJs);
-          const s = document.createElement("script");
-          s.type = "module";
-          s.crossOrigin = "anonymous";
-          s.src = mainUrl;
-          s.onerror = (e) => {
-            if (statusEl) statusEl.textContent = "Failed to load game script.";
-            if (bootStatusEl) bootStatusEl.textContent = "Failed to load game script.";
-          };
-          document.body.appendChild(s);
-        } catch (e) {
-          if (statusEl) statusEl.textContent = "Failed to load game files: " + (e && e.message ? e.message : e);
-          if (bootStatusEl) bootStatusEl.textContent = "Failed to load game files: " + (e && e.message ? e.message : e);
-          throw e;
+        function setStatus(message) {
+          if (statusEl) statusEl.textContent = message;
+          if (bootStatusEl) bootStatusEl.textContent = message;
         }
-      }
 
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", loadGame);
-      } else {
-        loadGame();
-      }
+        function describe(err) {
+          if (location.protocol === "file:") {
+            return "HTTP please, do not open this file locally, run a local HTTP server and load it via HTTP";
+          }
+          return (err && err.message) || String(err);
+        }
+
+        function fetchParts() {
+          if (typeof caches === "undefined") return Promise.resolve(null);
+          return caches.open(CACHE_NAME).then(function (cache) {
+            return cache.match(CACHE_KEY).then(function (hit) {
+              return hit ? hit.arrayBuffer() : null;
+            });
+          }).catch(function () {
+            return null;
+          });
+        }
+
+        function storeMerged(buffer) {
+          if (typeof caches === "undefined") return Promise.resolve();
+          return caches.open(CACHE_NAME).then(function (cache) {
+            return cache.put(
+              CACHE_KEY,
+              new Response(buffer, { headers: { "Content-Type": "text/javascript" } })
+            );
+          }).catch(function () {});
+        }
+
+        function mergeParts() {
+          return fetchParts().then(function (cached) {
+            if (cached) return cached;
+            setStatus("Loading game files…");
+            return Promise.all(PARTS.map(function (part) {
+              return fetch(part).then(function (res) {
+                if (!res.ok) throw new Error("Failed to fetch " + part + ": " + res.status);
+                return res.arrayBuffer();
+              });
+            })).then(function (buffers) {
+              var total = 0;
+              buffers.forEach(function (b) { total += b.byteLength; });
+              if (total !== TOTAL_SIZE) {
+                throw new Error(
+                  "Merged bundle is " + total + " bytes, expected " + TOTAL_SIZE +
+                  " — the .part files are incomplete or altered."
+                );
+              }
+              var merged = new Uint8Array(total);
+              var offset = 0;
+              buffers.forEach(function (b) {
+                merged.set(new Uint8Array(b), offset);
+                offset += b.byteLength;
+              });
+              return storeMerged(merged.slice().buffer).then(function () {
+                return merged.buffer;
+              });
+            });
+          });
+        }
+
+        function loadGame() {
+          return mergeParts().then(function (bytes) {
+            setStatus("Starting game…");
+            var source = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+
+            var base = new URL(BUNDLE, document.baseURI).href;
+            var patched = source.replace(ASSET_SITE, function () {
+              return ',"' + base + '")';
+            });
+            if (patched === source && source.indexOf("import.meta.url") !== -1) {
+              console.warn("[split-loader] no import.meta.url asset sites matched; " +
+                "side modules may fail to resolve.");
+            }
+
+            var url = URL.createObjectURL(new Blob([patched], { type: "text/javascript" }));
+            return import(url).then(function (mod) {
+              URL.revokeObjectURL(url);
+              return mod;
+            }, function (err) {
+              URL.revokeObjectURL(url);
+              throw err;
+            });
+          });
+        }
+
+        function start() {
+          loadGame().catch(function (err) {
+            var message = "Failed to load game files: " + describe(err);
+            setStatus(message);
+            console.error(err);
+          });
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", start);
+        } else {
+          start();
+        }
+      })();
     </script>
   </head>
   <body>
