@@ -356,32 +356,33 @@ Module.preRun = Module.preRun || [ ];
     async function loadGameZip() {
 
         try {
-            // First, do a HEAD request on all parts to get total size.
-            let partSizes = [];
-            for (let i = 0; i < GAME_ZIP_TOTAL_PARTS; i++) {
-                try {
-                    let head = await fetch('game.zip.part' + i, { method: 'HEAD' });
-                    if (head.ok) {
-                        let len = parseInt(head.headers.get('Content-Length'), 10);
-                        partSizes.push(Number.isNaN(len) ? 0 : len);
-                    } else {
-                        partSizes.push(0);
-                    }
-                } catch (e) {
-                    partSizes.push(0);
-                }
-            }
-            gameZipSize = partSizes.reduce((sum, s) => sum + s, 0);
-
             let f = FS.open('/game.zip', 'w');
+
+            let fetchedSize = 0;
+            let partSize = 0;
+            let partsFetched = 0;
+
+            function updateGameZipSize() {
+                gameZipSize = fetchedSize + partSize * (GAME_ZIP_TOTAL_PARTS - partsFetched);
+            }
 
             for (let i = 0; i < GAME_ZIP_TOTAL_PARTS; i++) {
                 let response = await fetch('game.zip.part' + i);
 
                 if (!response.ok) {
                     reportError("Could not load game.zip.part" + i + ": " + response.status + " " + response.statusText);
+                    FS.close(f);
                     return;
                 }
+
+                let contentLength = parseInt(response.headers.get('Content-Length'), 10);
+                if (!Number.isNaN(contentLength) && contentLength > 0) {
+                    partSize = contentLength;
+                }
+
+                let partStart = fetchedSize;
+                let partBytes = 0;
+                partsFetched = i + 1;
 
                 let reader = response.body.getReader();
 
@@ -394,8 +395,15 @@ Module.preRun = Module.preRun || [ ];
 
                     FS.write(f, value, 0, value.length);
                     gameZipDownloaded += value.length;
+                    partBytes += value.length;
 
+                    fetchedSize = partStart + partBytes;
+                    updateGameZipSize();
                     updateDownloadProgress();
+                }
+
+                if (partSize === 0) {
+                    partSize = partBytes;
                 }
             }
 
