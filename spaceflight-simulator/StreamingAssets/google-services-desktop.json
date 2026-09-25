@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "424065565634",
+    "project_id": "spaceflight-simulator-d2986",
+    "storage_bucket": "spaceflight-simulator-d2986.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:424065565634:android:08bf882aceb0b9a44c4c5b",
+        "android_client_info": {
+          "package_name": "com.StefMorojna.SpaceflightSimulator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "424065565634-7d5crrbnvfs3eib1527btrou6m7pmdlj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.StefMorojna.SpaceflightSimulator",
+            "certificate_hash": "0b718496ff8fa48e36b65d5e2fc18ca8d5987714"
+          }
+        },
+        {
+          "client_id": "424065565634-mqge4avh0tp5paj80s27p791dlqcmpq6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvEYGwqc6EVHVJnHmZqYq5X1Y2XNUvK0w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "424065565634-21d9kt8nedif43p6qot6vppeq3o4kagt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
