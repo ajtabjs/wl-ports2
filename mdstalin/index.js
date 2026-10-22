@@ -276,7 +276,7 @@ function loadSplitWasm(basePath, manifest) {
 			return response.arrayBuffer().then(function (buffer) {
 				const bytes = new Uint8Array(buffer);
 				if (!Number.isSafeInteger(part.size) || part.size <= 0 ||
-					part.size > 20000000 || offset + part.size > wasm.length) {
+					part.size > manifest.size || offset + part.size > wasm.length) {
 					return Promise.reject(new Error('invalid wasm part'));
 				}
 				if (bytes.length !== part.size) {
@@ -599,15 +599,20 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 			'dynamicLibraries': [`${loadPath}.side.wasm`].concat(this.gdextensionLibs),
 			'emscriptenPoolSize': this.emscriptenPoolSize,
 			'instantiateWasm': function (imports, onSuccess) {
+				const streamed = r;
+				const buffered = streamed.clone();
 				function done(result) {
 					onSuccess(result['instance'], result['module']);
 				}
+				function fromBuffer() {
+					return buffered.arrayBuffer().then(function (buffer) {
+						return WebAssembly.instantiate(buffer, imports);
+					}).then(done);
+				}
 				if (typeof (WebAssembly.instantiateStreaming) !== 'undefined') {
-					WebAssembly.instantiateStreaming(Promise.resolve(r), imports).then(done);
+					WebAssembly.instantiateStreaming(Promise.resolve(streamed), imports).then(done, fromBuffer);
 				} else {
-					r.arrayBuffer().then(function (buffer) {
-						WebAssembly.instantiate(buffer, imports).then(done);
-					});
+					fromBuffer();
 				}
 				r = null;
 				return {};
@@ -699,6 +704,8 @@ const Engine = (function () {
 
 	let loadPromise = null;
 	let loadPath = '';
+	let loadManifest = null;
+	let loadManifestPath = '';
 	let initPromise = null;
 
 	/**
@@ -729,9 +736,13 @@ const Engine = (function () {
 	 */
 	Engine.load = function (basePath, size, wasmManifest) {
 		if (loadPromise == null) {
-			loadPath = basePath;
 			if (wasmManifest) {
-				loadPromise = loadSplitWasm(basePath, wasmManifest);
+				loadManifest = wasmManifest;
+				loadManifestPath = basePath;
+			}
+			loadPath = basePath;
+			if (loadManifest && loadManifestPath === basePath) {
+				loadPromise = loadSplitWasm(basePath, loadManifest);
 			} else {
 				loadPromise = preloader.loadPromise(`${loadPath}.wasm`, size, true);
 			}
@@ -794,7 +805,7 @@ const Engine = (function () {
 									resolve();
 								});
 							});
-						});
+						}, reject);
 					});
 				}
 				preloader.setProgressFunc(this.config.onProgress);
