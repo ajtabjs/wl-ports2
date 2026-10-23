@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <base href="https://cdn.jsdelivr.net/gh/ajtabjs/wl-ports2@main/ting-wd/">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>There is No Game: Wrong Dimension</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #000; height: 100%;
+                   overflow: hidden; }
+      #wrap { display: flex; flex-direction: column; align-items: center;
+              justify-content: center; height: 100%; background: #000; }
+      #unity-canvas { background: #000; max-width: 100%; max-height: 100%;
+                      outline: none; display: block; }
+      #bar { width: 320px; height: 12px; margin-top: 14px; border: 1px solid #555;
+             display: none; }
+      #barfill { width: 0%; height: 100%; background: #7cc242; }
+      #msg { color: #bbb; font: 13px/1.5 system-ui, sans-serif; margin-top: 10px;
+             text-align: center; }
+      #credit { position: fixed; right: 10px; bottom: 8px; z-index: 10;
+                color: #8a8a8a; font: 12px/1.4 system-ui, sans-serif;
+                text-align: right; pointer-events: auto; }
+      #credit a { color: #7cc242; text-decoration: none; }
+      #credit a:hover { text-decoration: underline; }
+      #fs { position: fixed; left: 10px; bottom: 8px; z-index: 10; display: none;
+            background: rgba(255,255,255,0.08); color: #ddd; border: 1px solid #555;
+            border-radius: 4px; padding: 6px 12px; cursor: pointer;
+            font: 12px/1 system-ui, sans-serif; }
+      #fs:hover { background: rgba(255,255,255,0.18); }
+    </style>
+    <script>
+      (function () {
+        window.__webportAllowFullscreen = false;
+        var proto = Element.prototype;
+        ['requestFullscreen', 'webkitRequestFullscreen',
+         'mozRequestFullScreen', 'msRequestFullscreen'].forEach(function (name) {
+          var original = proto[name];
+          if (!original) { return; }
+          proto[name] = function () {
+            if (!window.__webportAllowFullscreen) {
+              return Promise.resolve();
+            }
+            window.__webportAllowFullscreen = false;
+            try { return original.apply(this, arguments); }
+            catch (e) { return Promise.resolve(); }
+          };
+        });
+        var lockOriginal = proto.requestPointerLock;
+        if (lockOriginal && !proto.__webportPointerLockWrapped) {
+          proto.__webportPointerLockWrapped = true;
+          proto.requestPointerLock = function () {
+            var el = this, r;
+            try { r = lockOriginal.apply(el, arguments); } catch (e) { r = null; }
+            if (r && typeof r.catch === 'function') {
+              return r.catch(function () {
+                var retry = function () {
+                  window.removeEventListener('pointerdown', retry, true);
+                  var r2;
+                  try { r2 = lockOriginal.call(el); } catch (e2) { return; }
+                  if (r2 && typeof r2.catch === 'function') { r2.catch(function () {}); }
+                };
+                window.addEventListener('pointerdown', retry, true);
+              });
+            }
+            return r;
+          };
+        }
+      })();
+
+      window.addEventListener('error', function (e) {
+        if (e && e.message && e.message.indexOf('Fullscreen request denied') >= 0) {
+          e.stopImmediatePropagation(); e.preventDefault(); return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        var m = e && e.reason && (e.reason.message || String(e.reason));
+        if (m && m.indexOf('Fullscreen request denied') >= 0) { e.preventDefault(); }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="wrap">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+      <div id="bar"><div id="barfill"></div></div>
+      <div id="msg">Loading…</div>
+    </div>
+    <button id="fs" type="button">Fullscreen</button>
+    <div id="credit">
+      ported by @._.dasher._.<br>
+      <a href="https://wasm.rip/" target="_blank" rel="noopener">wasm.rip</a>
+    </div>
+    <script>
+      var MANIFEST = {
+  "data": {
+    "file": "b70.data.unityweb",
+    "parts": [
+      "b70.data.unityweb.part000",
+      "b70.data.unityweb.part001",
+      "b70.data.unityweb.part002"
+    ],
+    "bytes": 54829683
+  },
+  "code": {
+    "file": "b70.wasm.unityweb",
+    "bytes": 8353010
+  },
+  "framework": {
+    "file": "b70.framework.js.unityweb",
+    "bytes": 81016
+  },
+  "loader": {
+    "file": "b70.loader.js",
+    "bytes": 117365
+  }
+};
+      var BUILD = "Build";
+
+      var CDN_BASE = "";
+      if (CDN_BASE) {
+        var u = new URL(window.location.href);
+        if (u.searchParams.get("cdn") !== CDN_BASE) {
+          u.searchParams.set("cdn", CDN_BASE);
+          history.replaceState(null, "", u.toString());
+        }
+      }
+
+      var CACHE_KEY = "tmfds-dashiellbenton-ports-tmfds-default-b70";
+
+      var canvas  = document.querySelector("#unity-canvas");
+      var bar     = document.querySelector("#bar");
+      var barfill = document.querySelector("#barfill");
+      var msg     = document.querySelector("#msg");
+
+      function setMsg(t) { msg.textContent = t; }
+      function mb(bytes) { return (bytes / 1048576).toFixed(1); }
+
+      var TOTAL = MANIFEST.data.bytes + MANIFEST.framework.bytes + MANIFEST.code.bytes;
+      var downloaded = 0;
+
+      function report(label, fromCache) {
+        bar.style.display = "block";
+        var pct = TOTAL ? downloaded / TOTAL : 0;
+        barfill.style.width = (pct * 100).toFixed(1) + "%";
+        setMsg((fromCache ? "Loading cached " : "Downloading ") + label + "… " +
+               mb(downloaded) + " / " + mb(TOTAL) +
+               " MB (" + Math.floor(pct * 100) + "%)");
+      }
+
+      var cachePromise = (async function () {
+        try {
+          if (!window.caches) return null;
+          var names = await caches.keys();
+          for (var i = 0; i < names.length; i++) {
+            if (names[i].indexOf("tmfds-") === 0 && names[i] !== CACHE_KEY) {
+              await caches.delete(names[i]);
+            }
+          }
+          return await caches.open(CACHE_KEY);
+        } catch (e) {
+          return null;
+        }
+      })();
+
+      async function assembleOnce(entry, label, useCache) {
+        var urls = entry.parts || [entry.file];
+        var cache = useCache ? await cachePromise : null;
+        var buffers = [];
+        for (var i = 0; i < urls.length; i++) {
+          var url = BUILD + "/" + urls[i];
+          var res = null;
+          var fromCache = false;
+          if (cache) {
+            try {
+              res = await cache.match(url);
+              fromCache = !!res;
+            } catch (e) { res = null; }
+          }
+          if (!res) {
+            var lastErr = null;
+            for (var attempt = 0; attempt < 4; attempt++) {
+              if (attempt) {
+                setMsg(label + ": retrying (" + attempt + ")…");
+                await new Promise(function (r) { setTimeout(r, 400 * Math.pow(2, attempt)); });
+              }
+              try {
+                var candidate = await fetch(url, { cache: "no-store" });
+                if (!candidate.ok) {
+                  lastErr = new Error(url + " returned " + candidate.status);
+                  continue;
+                }
+                res = candidate;
+                break;
+              } catch (e) {
+                lastErr = e;
+              }
+            }
+            if (!res) throw lastErr || new Error("failed to fetch " + url);
+            if (cache) {
+              try { await cache.put(url, res.clone()); } catch (e) { }
+            }
+          }
+          if (res.body && res.body.getReader) {
+            var reader = res.body.getReader();
+            while (true) {
+              var step = await reader.read();
+              if (step.done) break;
+              buffers.push(step.value);
+              downloaded += step.value.byteLength;
+              report(label, fromCache);
+            }
+          } else {
+            var buf = await res.arrayBuffer();
+            buffers.push(buf);
+            downloaded += buf.byteLength;
+            report(label, fromCache);
+          }
+        }
+        var blob = new Blob(buffers);
+        if (entry.bytes && blob.size < entry.bytes) {
+          throw Object.assign(
+            new Error(label + " is only " + blob.size + " bytes, expected at least "
+              + entry.bytes + " (truncated download or CDN error page)"),
+            { badPayload: true, urls: urls });
+        }
+        return URL.createObjectURL(blob);
+      }
+
+      async function assemble(entry, label) {
+        try {
+          return await assembleOnce(entry, label, true);
+        } catch (e) {
+          setMsg(label + ": cached copy looks wrong, re-downloading…");
+          try {
+            var cache = await cachePromise;
+            if (cache) {
+              var urls = entry.parts || [entry.file];
+              for (var i = 0; i < urls.length; i++) {
+                try { await cache.delete(BUILD + "/" + urls[i]); } catch (err) {}
+              }
+            }
+          } catch (err) {}
+          downloaded = 0;
+          return await assembleOnce(entry, label, false);
+        }
+      }
+
+      (async function () {
+        try {
+          var dataUrl      = await assemble(MANIFEST.data, "game data");
+          var frameworkUrl = await assemble(MANIFEST.framework, "framework");
+          var codeUrl      = await assemble(MANIFEST.code, "code");
+
+          setMsg("Starting…");
+          var script = document.createElement("script");
+          script.src = BUILD + "/" + MANIFEST.loader.file;
+          script.onload = function () {
+            if (typeof createUnityInstance !== "function") {
+              setMsg("The loader at " + script.src + " did not define createUnityInstance "
+                + "(the CDN probably served an error page). Reload to try again.");
+              return;
+            }
+            createUnityInstance(canvas, {
+              dataUrl: dataUrl,
+              frameworkUrl: frameworkUrl,
+              codeUrl: codeUrl,
+              streamingAssetsUrl: "StreamingAssets",
+              companyName: "Applesinmypants",
+              productName: "The Message From Deep Space",
+              productVersion: "1.0",
+            }, function (p) {
+              bar.style.display = "block";
+              barfill.style.width = Math.round(p * 100) + "%";
+              setMsg("Loading… " + Math.round(p * 100) + "%");
+            }).then(function (instance) {
+              window.unityInstance = instance;
+              bar.style.display = "none";
+              setMsg("");
+              var fs = document.querySelector("#fs");
+              fs.style.display = "block";
+              fs.onclick = function () {
+                window.__webportAllowFullscreen = true;
+                if (instance.SetFullscreen) instance.SetFullscreen(1);
+                else if (canvas.requestFullscreen) canvas.requestFullscreen();
+                window.__webportAllowFullscreen = false;
+                canvas.focus();
+              };
+            }).catch(function (e) {
+              setMsg("Failed to start: " + e);
+            });
+          };
+          script.onerror = function () { setMsg("Failed to load " + script.src); };
+          document.body.appendChild(script);
+        } catch (e) {
+          setMsg("Could not load the game: " + (e && e.message ? e.message : e)
+            + " — reload to try again.");
+          if (window.console) console.error("[WebPort] load failed", e);
+        }
+      })();
+    </script>
+  </body>
+</html>
