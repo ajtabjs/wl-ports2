@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Unity WebGL Player | No Time To Explain</title>
+<link rel="shortcut icon" href="./TemplateData/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #unityContainer {
+    display: none;
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+  }
+
+  #unityContainer canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  #loader-screen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Figtree', Arial, sans-serif;
+    z-index: 999;
+  }
+
+  #loader-screen h1 {
+    color: #fff;
+    font-size: 2rem;
+    margin-bottom: 24px;
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+
+  .file-row {
+    display: flex;
+    gap: 8px;
+    font-size: 0.95rem;
+    margin: 4px 0;
+  }
+
+  .file-name {
+    color: #F5A9B8;
+  }
+
+  .file-status {
+    color: #5BCEFA;
+  }
+
+  .file-status.pending {
+    color: #888;
+  }
+
+  #play-button {
+    display: none;
+    margin-top: 24px;
+    padding: 12px 32px;
+    font: inherit;
+    font-size: 1.1rem;
+    color: #fff;
+    background: transparent;
+    border: 2px solid #F5A9B8;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  #play-button:hover {
+    background: #F5A9B8;
+    color: #000;
+  }
+
+  #play-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  #loader-screen.ready > :not(#play-button) {
+    display: none;
+  }
+
+  #loader-screen.ready #play-button {
+    display: inline-block;
+    margin-top: 0;
+  }
+</style>
+</head>
+<body>
+
+<div id="loader-screen">
+  <h1>very professional game loader</h1>
+  <img src="./loader.gif" alt="loader" width="200" height="200" style="margin-bottom: 24px;">
+  <div class="file-row">
+    <span class="file-name">build.data:</span>
+    <span class="file-status pending" id="status-data">waiting...</span>
+  </div>
+  <div class="file-row">
+    <span class="file-name">build.wasm:</span>
+    <span class="file-status pending" id="status-wasm">waiting...</span>
+  </div>
+  <button id="play-button" type="button">click to play</button>
+</div>
+
+<div id="unityContainer"></div>
+<script src="./Build/UnityLoader.js"></script>
+<script>
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    var meta = document.createElement('meta');
+    meta.name = 'viewport';
+    meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+    document.getElementsByTagName('head')[0].appendChild(meta);
+  }
+
+  var unity_instance;
+  var split_cache = "notter-cache";
+  var data_path = "./Build/build-webgl.data.unityweb";
+  var wasm_code_path = "./Build/build-webgl.wasm.code.unityweb";
+  var data_parts = 8;
+  var wasm_parts = 2;
+  var game_config;
+  var merged_data_url;
+  var merged_wasm_url;
+
+  function set_status(id, text, done) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove("pending");
+    el.style.color = done ? "#00e676" : "#ffeb3b";
+  }
+
+  async function merge_files(file_parts, cache_key, on_progress) {
+    var cache = null;
+    try {
+      cache = await caches.open(split_cache);
+    } catch (e) {
+    }
+
+    if (cache) {
+      try {
+        var cached_response = await cache.match(cache_key);
+        if (cached_response) {
+          var cached_blob = await cached_response.blob();
+          if (on_progress) on_progress(file_parts.length, file_parts.length);
+          return URL.createObjectURL(cached_blob);
+        }
+      } catch (e) {
+        console.warn("Split cache read failed, downloading parts.", e);
+      }
+    }
+
+    var loaded = 0;
+    var buffers = await Promise.all(
+      file_parts.map(function (part) {
+        return fetch(part).then(function (response) {
+          if (!response.ok) throw new Error("Failed to fetch " + part);
+          return response.arrayBuffer();
+        }).then(function (buffer) {
+          loaded += 1;
+          if (on_progress) on_progress(loaded, file_parts.length);
+          return buffer;
+        });
+      })
+    );
+    var merged_blob = new Blob(buffers, { type: "application/octet-stream" });
+
+    if (cache) {
+      try {
+        await cache.put(cache_key, new Response(merged_blob));
+      } catch (e) {
+        console.warn("Split cache write failed.", e);
+      }
+    }
+
+    return URL.createObjectURL(merged_blob);
+  }
+
+  function get_parts(file, start, end) {
+    var parts = [];
+    for (var i = start; i <= end; i++) {
+      parts.push(file + ".part" + i);
+    }
+    return parts;
+  }
+
+  async function load_assets() {
+    set_status("status-data", "merging... 0/" + data_parts);
+    set_status("status-wasm", "merging... 0/" + wasm_parts);
+
+    var results = await Promise.all([
+      fetch("./Build/build-webgl.json").then(function (response) {
+        if (!response.ok) throw new Error("Failed to fetch build config");
+        return response.json();
+      }),
+      merge_files(get_parts(data_path, 0, data_parts - 1), data_path, function (done, total) {
+        set_status("status-data", "merging... " + done + "/" + total);
+      }).then(function (url) {
+        set_status("status-data", "done", true);
+        return url;
+      }),
+      merge_files(get_parts(wasm_code_path, 0, wasm_parts - 1), wasm_code_path, function (done, total) {
+        set_status("status-wasm", "merging... " + done + "/" + total);
+      }).then(function (url) {
+        set_status("status-wasm", "done", true);
+        return url;
+      })
+    ]);
+
+    game_config = results[0];
+    merged_data_url = results[1];
+    merged_wasm_url = results[2];
+
+    document.getElementById("loader-screen").classList.add("ready");
+    var play_button = document.getElementById("play-button");
+    play_button.disabled = false;
+  }
+
+  function show_error(err) {
+    var loader_screen = document.getElementById("loader-screen");
+    loader_screen.style.display = "flex";
+
+    var heading = document.createElement("h1");
+    heading.style.color = "#ff4444";
+    heading.textContent = "Error loading game.";
+
+    var detail = document.createElement("small");
+    detail.style.fontSize = "0.8rem";
+    detail.textContent = String((err && err.message) || err || "Unknown error");
+
+    heading.appendChild(document.createElement("br"));
+    heading.appendChild(detail);
+    loader_screen.replaceChildren(heading);
+  }
+
+  function start_game() {
+    if (unity_instance) return;
+    var play_button = document.getElementById("play-button");
+    play_button.disabled = true;
+    document.getElementById("loader-screen").style.display = "none";
+    document.getElementById("unityContainer").style.display = "block";
+
+    var json_url = new URL("./Build/build-webgl.json", document.baseURI).href;
+    ["wasmFrameworkUrl", "backgroundUrl"].forEach(function (key) {
+      if (game_config[key]) game_config[key] = new URL(game_config[key], json_url).href;
+    });
+    game_config.dataUrl = merged_data_url;
+    game_config.wasmCodeUrl = merged_wasm_url;
+    game_config.cacheControl = false;
+
+    var config_url = URL.createObjectURL(new Blob([JSON.stringify(game_config)], { type: "application/json" }));
+    unity_instance = UnityLoader.instantiate("unityContainer", config_url, {
+      onerror: function (message) {
+        show_error(message);
+      },
+      Module: {
+        locateFile: function (file) {
+          return file === "build.wasm" ? this.wasmCodeUrl : "./Build/" + file;
+        },
+        resolveBuildUrl: function (url) {
+          return /^(?:https?|ftp|file|blob|data):/i.test(url)
+            ? url
+            : new URL(url, json_url).href;
+        }
+      }
+    });
+  }
+
+  document.getElementById("play-button").addEventListener("click", start_game);
+  load_assets().catch(show_error);
+</script>
+</body>
+</html>
