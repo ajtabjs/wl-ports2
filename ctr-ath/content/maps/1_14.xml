@@ -1,0 +1,298 @@
+<map>
+<layer name="settings">
+<map gridSize="32" width="320" height="960" />
+<gameDesign ropePhysicsSpeed="1" twoParts="false" nightLevel="false" />
+</layer>
+<layer name="Objects">
+
+<target x="535" y="885" />
+<candy x="490" y="64" />
+
+<!-- Checkpoints -->
+<!-- <candy x="-140" y="55" /> --> <!-- First Magic Hat -->
+<!-- <candy x="-209" y="300" /> --> <!-- Extreme Rope Boost -->
+<!-- <candy x="270" y="480" /> --> <!-- After Rope Boost -->
+
+
+<star x="468" y="282" />
+<star x="-158" y="607" />
+<star x="578" y="745" />
+
+
+<spike2 x="576" y="893" angle="90" size="2" />
+<spike2 x="540" y="845" angle="180" size="2" />
+<bubble x="456" y="844" />
+<spike2 x="341" y="503" angle="-135" size="1" />
+<spike2 x="423" y="894" angle="90" size="2" />
+<spike2 x="24" y="736" angle="135" size="3" />
+<spike2 x="376" y="844" angle="180" size="2" />
+<spike2 x="485" y="942" angle="180" size="4" />
+<grab x="490" y="64" length="15" wheel="false" gun="false" radius="20" moveLength="100" moveVertical="false" moveOffset="100" spider="true" part="L" hidePath="false" />
+<pump x="390" y="64" angle="-90" />
+<pump x="440" y="64" angle="0" />
+<spike2 x="473" y="157" angle="180" size="3" />
+<spike2 x="544" y="87" angle="-90" size="3" />
+<spike2 x="408" y="135" angle="90" size="1" />
+<pump x="312" y="183" angle="-90" />
+<bouncer1 x="279" y="353" angle="-30" size="2" />
+<spike2 x="235" y="173" angle="-135" size="1" />
+<spike2 x="388" y="173" angle="135" size="1" />
+<spike2 x="284" y="199" angle="-165" size="1" />
+<spike2 x="339" y="201" angle="165" size="1" />
+<grab x="410" y="120" length="100" wheel="false" gun="false" radius="30" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<spike2 x="478" y="12" angle="-175" size="3" />
+<grab x="213" y="149" length="100" wheel="false" gun="false" radius="30" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<spike2 x="213" y="28" angle="90" size="2" />
+<spike2 x="312" y="29" angle="165" size="4" />
+<spike2 x="111" y="159" angle="105" size="1" />
+<spike2 x="139" y="112" angle="135" size="1" />
+<spike2 x="187" y="84" angle="165" size="1" />
+<spike2 x="118" y="211" angle="60" size="1" />
+<spike2 x="3" y="520" angle="165" size="3" />
+<spike2 x="94" y="220" angle="-165" size="3" />
+<spike2 x="314" y="453" angle="90" size="2" />
+<spike2 x="368" y="221" angle="90" size="1" />
+<spike2 x="343" y="396" angle="150" size="1" />
+<spike4 x="368" y="248" angle="180" size="1" toggled="0" />
+<spike4 x="368" y="338" angle="180" size="1" toggled="0" />
+<pump x="209" y="329" angle="-45" />
+<bubble x="380" y="291" />
+<spike2 x="540" y="288" angle="90" size="4" />
+<spike2 x="458" y="202" angle="180" size="4" />
+<spike2 x="453" y="379" angle="180" size="4" />
+<spike2 x="248" y="395" angle="-135" size="1" />
+<spike2 x="292" y="410" angle="180" size="1" />
+<bubble x="287" y="383" />
+<bubble x="335" y="364" />
+<bubble x="131" y="337" />
+<grab x="29" y="287" length="100" wheel="false" gun="false" radius="25" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<spike2 x="280" y="184" angle="-45" size="2" />
+<spike2 x="343" y="184" angle="45" size="2" />
+<pump x="166" y="142" angle="-150" />
+<spike2 x="-76" y="186" angle="110" size="2" />
+<spike2 x="104" y="18" angle="125" size="2" />
+<spike2 x="128" y="67" angle="-165" size="2" />
+<spike2 x="78" y="145" angle="15" size="1" />
+<grab x="72" y="184" length="0" wheel="true" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<spike2 x="82" y="254" angle="160" size="2" />
+<spike2 x="-256" y="256" angle="-15" size="2" />
+<spike2 x="37" y="204" angle="95" size="3" />
+<bubble x="-15" y="255" />
+<sock x="-81" y="91" group="0" angle="135" />
+<spike2 x="420" y="592" angle="-40" size="4" />
+<spike2 x="-269" y="328" angle="-100" size="2" />
+<spike2 x="-139" y="44" angle="165" size="3" />
+<spike2 x="-201" y="151" angle="-90" size="4" />
+<spike2 x="-5" y="76" angle="-30" size="1" />
+<spike2 x="-44" y="116" angle="-60" size="1" />
+<pump x="-8" y="384" angle="-90" />
+<spike2 x="-202" y="226" angle="-105" size="3" />
+<pump x="-24" y="62" angle="30" />
+<spike2 x="50" y="59" angle="175" size="1" />
+<spike2 x="-120" y="306" angle="-30" size="1" />
+<spike2 x="-166" y="396" angle="-105" size="1" />
+<spike2 x="64" y="413" angle="15" size="1" />
+<spike2 x="15" y="390" angle="30" size="1" />
+<spike2 x="-25" y="395" angle="-45" size="1" />
+<spike2 x="-94" y="264" angle="-90" size="1" />
+<spike2 x="-160" y="345" angle="120" size="1" />
+<spike2 x="121" y="420" angle="180" size="1" />
+<spike2 x="175" y="407" angle="-30" size="1" />
+<spike2 x="225" y="378" angle="150" size="1" />
+<pump x="-117" y="391" angle="-50" />
+<spike2 x="-72" y="430" angle="-30" size="1" />
+<spike2 x="-128" y="434" angle="15" size="1" />
+<sock x="65" y="105" group="0" angle="30" />
+<spike2 x="-28" y="44" angle="20" size="2" />
+<bubble x="-116" y="133" />
+<spike2 x="-112" y="206" angle="15" size="1" />
+<spike2 x="-116" y="219" angle="45" size="1" />
+
+<grab x="-180" y="250" length="100" wheel="false" gun="false" radius="10" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+
+<pump x="162" y="276" angle="-105" />
+<rotatedCircle x="162" y="276" size="50" handleAngle="-105" oneHandle="true"  />
+
+<grab x="-155" y="131" length="100" wheel="false" gun="false" radius="5" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<spike2 x="-198" y="270" angle="-120" size="1" />
+<bouncer1 x="-238" y="279" angle="165" size="1" />
+<spike2 x="-80" y="756" angle="-70" size="2" />
+
+<grab x="-208" y="460" length="10" wheel="false" gun="false" radius="0" moveLength="200" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<bubble x="56" y="460" />
+<bouncer1 x="270" y="430" angle="-135" size="2" path="" moveSpeed="50" />
+<pump x="250" y="620" angle="180" />
+
+
+<spike2 x="-204" y="523" angle="0" size="4" />
+<spike2 x="368" y="433" angle="90" size="4" />
+<spike2 x="211" y="416" angle="175" size="2" />
+<spike2 x="140" y="502" angle="180" size="3" />
+<spike2 x="442" y="532" angle="180" size="2" />
+<spike2 x="407" y="458" angle="90" size="3" />
+<sock x="342" y="459" group="1" angle="-90" />
+<sock x="337" y="434" group="1" angle="90" />
+<spike2 x="-88" y="532" angle="15" size="1" />
+<spike2 x="291" y="457" angle="-105" size="2" />
+<spike2 x="-261" y="451" angle="-90" size="3" />
+<spike2 x="-11" y="426" angle="170" size="3" />
+<spike4 x="486" y="180" angle="90" size="3" toggled="0" />
+<spike4 x="506" y="180" angle="90" size="3" toggled="0" />
+<spike4 x="526" y="180" angle="90" size="3" toggled="0" />
+<spike4 x="546" y="180" angle="90" size="3" toggled="0" />
+<spike4 x="486" y="300" angle="90" size="3" toggled="0" />
+<spike4 x="506" y="300" angle="90" size="3" toggled="0" />
+<spike4 x="526" y="300" angle="90" size="3" toggled="0" />
+<spike4 x="546" y="300" angle="90" size="3" toggled="0" />
+<gravitySwitch x="161" y="29" /> <!-- ;) -->
+<pump x="135" y="40" angle="150" />
+<pump x="185" y="40" angle="30" />
+<pump x="160" y="0" angle="-90" />
+<rotatedCircle x="160" y="20" size="50" handleAngle="90" oneHandle="false"  />
+
+<spike2 x="303" y="651" angle="180" size="2" />
+<spike2 x="219" y="536" angle="-105" size="2" />
+<spike2 x="364" y="522" angle="15" size="2" />
+<bubble x="-214" y="393" />
+<grab x="260" y="546" length="100" wheel="false" gun="false" radius="10" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<bubble x="260" y="544" />
+<pump x="256" y="488" angle="95" />
+<rotatedCircle x="-241" y="54" size="100" handleAngle="90" oneHandle="true"  />
+<sock x="-82" y="592" group="2" angle="95" />
+<sock x="182" y="561" group="2" angle="75" />
+<sock x="1" y="587" group="3" angle="90" />
+<sock x="88" y="568" group="3" angle="75" />
+<spike2 x="52" y="599" angle="75" size="4" />
+<spike2 x="163" y="651" angle="180" size="4" />
+<rotatedCircle x="285" y="274" size="80" handleAngle="90" oneHandle="false"  />
+<spike2 x="79" y="627" angle="45" size="1" />
+<rotatedCircle x="-63" y="323" size="50" handleAngle="90" oneHandle="false"  />
+<electro x="-16" y="192" initialDelay="0" offTime="1" onTime="0" angle="-165" size="5" />
+<rotatedCircle x="296" y="76" size="50" handleAngle="90" oneHandle="true"  />
+<rotatedCircle x="-9" y="160" size="50" handleAngle="90" oneHandle="false"  />
+<grab x="-246" y="210" length="0" wheel="true" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<spike4 x="-119" y="617" angle="-170" size="3" toggled="0" />
+<bouncer1 x="-2" y="728" angle="-30" size="2" />
+<spike2 x="-20" y="788" angle="-120" size="4" />
+<spike2 x="358" y="608" angle="-135" size="1" />
+<pump x="327" y="496" angle="125" />
+<spike2 x="338" y="618" angle="-90" size="1" />
+<spike2 x="-115" y="572" angle="95" size="2" />
+<spike2 x="-222" y="873" angle="-115" size="2" />
+<spike2 x="-245" y="611" angle="-100" size="4" />
+<spike2 x="-219" y="743" angle="-75" size="4" />
+<spike2 x="-224" y="740" angle="80" size="2" />
+<bouncer1 x="-186" y="910" angle="35" size="2" />
+<grab x="352" y="628" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<bouncer1 x="44" y="780" angle="-130" size="2" />
+<bubble x="-80" y="674" />
+<rotatedCircle x="140" y="571" size="80" handleAngle="165" oneHandle="false"  />
+<spike2 x="-46" y="817" angle="-160" size="2" />
+<spike2 x="240" y="811" angle="110" size="2" />
+<spike2 x="-80" y="947" angle="0" size="4" />
+<bubble x="26" y="900" />
+<grab x="-61" y="782" length="0" wheel="true" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<pump x="269" y="806" angle="0" />
+<spike2 x="308" y="909" angle="-75" size="3" />
+<spike2 x="345" y="772" angle="180" size="4" />
+<spike2 x="496" y="807" angle="30" size="3" />
+<spike2 x="92" y="802" angle="135" size="4" />
+<grab x="-239" y="548" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<grab x="-204" y="555" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<grab x="-170" y="562" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<grab x="-136" y="571" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<bouncer1 x="17" y="807" angle="-130" size="2" />
+<bouncer1 x="72" y="754" angle="-130" size="2" />
+<bouncer1 x="99" y="727" angle="-130" size="2" />
+<spike2 x="114" y="712" angle="45" size="2" />
+<rotatedCircle x="4" y="650" size="65" handleAngle="90" oneHandle="true"  />
+<spike2 x="231" y="932" angle="-160" size="3" />
+<spike2 x="508" y="602" angle="75" size="3" />
+<spike2 x="490" y="456" angle="90" size="3" />
+<spike2 x="83" y="926" angle="-15" size="4" />
+<spike2 x="182" y="698" angle="-60" size="2" />
+<spike2 x="551" y="760" angle="-105" size="4" />
+<spike2 x="-188" y="627" angle="-75" size="1" />
+<spike2 x="-216" y="598" angle="15" size="1" />
+<bubble x="204" y="877" />
+<pump x="220" y="648" angle="60" />
+<grab x="-218" y="632" length="0" wheel="true" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<grab x="59" y="242" length="100" wheel="false" gun="false" radius="0" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<bouncer1 x="372" y="944" angle="0" size="1" />
+<bouncer1 x="409" y="903" angle="-90" size="1" />
+<bouncer1 x="331" y="901" angle="90" size="1" />
+<bouncer1 x="370" y="869" angle="180" size="1" />
+<grab x="260" y="711" length="30" wheel="true" gun="false" radius="30" moveLength="-1" moveVertical="false" moveOffset="0" spider="false" part="L" hidePath="false" />
+<pump x="109" y="807" angle="45" />
+<pump x="321" y="648" angle="60" />
+<pump x="420" y="609" angle="60" />
+<pump x="268" y="647" angle="120" />
+<spike2 x="423" y="757" angle="-15" size="2" />
+<spike2 x="504" y="712" angle="135" size="2" />
+<pump x="515" y="760" angle="-30" />
+<rotatedCircle x="-86" y="876" size="80" handleAngle="150" oneHandle="true"  />
+<pump x="480" y="550" angle="90" />
+<pump x="371" y="637" angle="280" />
+<grab x="371" y="907" length="100" wheel="false" gun="false" radius="30" moveLength="-1" moveVertical="false" moveOffset="0" spider="true" part="L" hidePath="false" />
+<rotatedCircle x="420" y="706" size="60" handleAngle="150" oneHandle="false"  />
+<rotatedCircle x="270" y="480" size="60" handleAngle="80" oneHandle="true"  />
+<rotatedCircle x="340" y="550" size="60" handleAngle="140" oneHandle="false"  />
+
+
+
+
+<bubble x="143" y="771" />
+<bubble x="186" y="799" />
+<bubble x="182" y="747" />
+<bubble x="225" y="764" />
+<pump x="184" y="456" angle="180" />
+<pump x="73" y="286" angle="0" />
+<pump x="70" y="335" angle="0" />
+<pump x="70" y="383" angle="0" />
+<pump x="-135" y="271" angle="135" />
+<pump x="-168" y="699" angle="15" />
+<pump x="-104" y="716" angle="-165" />
+<bubble x="234" y="811" />
+<tutorial09 x="357" locale="en" y="143" />
+<tutorial01 x="-171" locale="en" y="198" />
+<tutorial03 x="-18" locale="en" y="257" angle="120" />
+<tutorialText x="-252" y="289" locale="en" text=":3" width="50" />
+<tutorialText x="-247" y="288" locale="en" text=":3" width="50" />
+<tutorialText x="-237" y="287" locale="en" text=":3" width="50" />
+<tutorialText x="-243" y="282" locale="en" text=":3" width="50" />
+<tutorialText x="69" y="825" locale="en" text="Feed Om Nom to the Candy!" width="150" />
+<tutorial05 x="-224" locale="en" y="317" />
+<tutorial05 x="370" locale="en" y="899" />
+<tutorial02 x="-151" locale="en" y="761" angle="-160" />
+<tutorial06 x="319" locale="en" y="729" />
+<tutorial08 x="356" locale="en" y="566" />
+<tutorial08 x="121" locale="en" y="463" />
+<tutorial08 x="266" locale="en" y="152" />
+<tutorial08 x="99" locale="en" y="111" />
+<tutorial08 x="185" locale="en" y="207" />
+<tutorial08 x="-156" locale="en" y="169" />
+<tutorial08 x="-110" locale="en" y="494" />
+<tutorial08 x="-145" locale="en" y="656" />
+<tutorial08 x="145" locale="en" y="618" />
+<tutorial08 x="306" locale="en" y="687" />
+<tutorial08 x="370" locale="en" y="807" />
+<tutorial08 x="456" locale="en" y="332" />
+<pump x="511" y="284" angle="180" />
+<tutorial04 x="11" locale="en" y="124" angle="180" />
+<bubble x="530" y="418" />
+<bubble x="544" y="532" />
+<bubble x="534" y="475" />
+<bubble x="551" y="586" />
+<bubble x="560" y="637" />
+<bubble x="569" y="689" />
+<bubble x="580" y="746" />
+<star x="546" y="531" />
+<star x="570" y="688" />
+<bubble x="-251" y="751" />
+<star x="560" y="636" />
+<star x="551" y="586" />
+<star x="466" y="614" />
+<star x="534" y="475" />
+<star x="529" y="419" />
+</layer>
+</map>

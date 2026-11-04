@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Ascension to Heaven</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#ddd;font:14px sans-serif}
+/* The canvas is the game's window: the largest 16:9 box that fits the page,
+   centered. SDL sees the CSS size ("external size") and re-reads it on every
+   browser resize (SDL_EVENT_WINDOW_RESIZED -> ScreenSizeManager.FixWindowSize).
+   The game itself then runs in its normal windowed mode, like the desktop
+   build whose window is also locked to 16:9; its fullscreen mode lays out some
+   scenes wrongly (e.g. level backgrounds only cover part of the screen). */
+canvas{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(100vw,calc(100vh*16/9));height:min(100vh,calc(100vw*9/16))}
+#status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
+#bar{width:240px;height:6px;margin-top:8px;background:#333;border-radius:3px;overflow:hidden}
+#bar>div{height:100%;width:0;background:#e8b04a}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1280" height="720" tabindex="0"></canvas>
+<div id="status"><span id="msg">loading…</span><div id="bar"><div></div></div></div>
+<script type="module">
+// SDL3's Emscripten video backend (and Emscripten's GL context code) finds the
+// canvas through Module.canvas. dotnet.js creates its own Emscripten Module and
+// ignores window.Module, so the canvas has to go through withModuleConfig.
+// SDL3 also looks the canvas up by selector (SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR,
+// default "#canvas"), so the id must stay "canvas".
+const canvas = document.getElementById('canvas');
+const msg = document.getElementById('msg');
+const bar = document.querySelector('#bar>div');
+window.addEventListener('error', (e) => console.error('window error', e.message));
+globalThis.athLanguage = () => navigator.language || 'en';
+// Save game (ctr_save.bin, base64) kept across reloads; see WebSave.cs.
+const SAVE_KEY = 'ath-save';
+globalThis.athLoadSave = () => {
+  let s = '';
+  try { s = localStorage.getItem(SAVE_KEY) || ''; } catch { }
+  trace(`save loaded (${s.length} chars)`);
+  return s;
+};
+globalThis.athStoreSave = (b64) => {
+  try { localStorage.setItem(SAVE_KEY, b64); } catch (e) { console.warn('save failed', e); }
+  trace(`save stored (${b64.length} chars)`);
+};
+// ?trace logs boot timings, slow resource loads and frame times.
+const TRACE = new URLSearchParams(location.search).has('trace');
+const trace = TRACE ? (m) => console.log(`[trace ${performance.now().toFixed(0)}ms] ${m}`) : () => {};
+
+// Game data: tools/stage_content.py copies content/ next to the page and lists
+// it in content/manifest.json as [path, size, hash, deferred]. Files are kept
+// in Cache Storage keyed by hash, so a reload only downloads what changed.
+// Non-deferred files (by default all of them) are written to /content in the
+// Emscripten filesystem before the game boots, so nothing is downloaded while
+// playing. Deferred ones (only with ATH_LAZY_CONTENT=1: level backgrounds)
+// are prefetched into the cache after boot and written on demand
+// (src/WebContent.cs).
+const CACHE_NAME = 'ath-content';
+const cache = await (globalThis.caches ? caches.open(CACHE_NAME).catch(() => null) : null);
+const fileUrl = (f) => new URL('content/' + f[0].split('/').map(encodeURIComponent).join('/') + '?v=' + f[2], location.href).href;
+
+async function fetchCached(f) {
+  const url = fileUrl(f);
+  const hit = cache && await cache.match(url).catch(() => null);
+  if (hit) return hit;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`content/${f[0]}: HTTP ${res.status}`);
+  if (cache) await cache.put(url, res.clone()).catch(() => {});
+  return res;
+}
+const fetchBytes = async (f) => new Uint8Array(await (await fetchCached(f)).arrayBuffer());
+
+const manifest = await (await fetch('content/manifest.json', { cache: 'no-cache' })).json();
+const bootFiles = manifest.files.filter((f) => !f[3]);
+const deferred = new Map(manifest.files.filter((f) => f[3]).map((f) => [f[0].replace(/\.[^.]*$/, ''), f]));
+
+// Loader status: "loading dotnet NN%" until the .NET runtime is created,
+// then "loading assets NN%": the assets are only fetched once the runtime
+// is up, and each file goes straight into its filesystem.
+const MB = (n) => (n / 1e6).toFixed(0);
+let phase = 'dotnet';
+let bootDone = 0;
+let dotnetDone = 0;
+const dotnetSizes = await fetch('framework-sizes.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({}));
+const dotnetTotal = Object.values(dotnetSizes).reduce((a, b) => a + b, 0);
+const setStatus = (text, p) => {
+  msg.textContent = text;
+  bar.style.width = `${100 * Math.min(1, p)}%`;
+};
+const showProgress = () => {
+  if (phase === 'dotnet') {
+    const p = dotnetTotal ? dotnetDone / dotnetTotal : 0;
+    setStatus(`loading dotnet ${(100 * Math.min(1, p)).toFixed(0)}%`, p);
+  } else if (phase === 'assets') {
+    const p = bootDone / manifest.boot;
+    setStatus(`loading assets ${(100 * p).toFixed(0)}% (${MB(bootDone)} / ${MB(manifest.boot)} MB)`, p);
+  }
+};
+showProgress();
+// Runtime downloads go through this loader so their bytes can be counted.
+// Only .wasm files listed in framework-sizes.json are wrapped; everything else
+// (JS modules, boot config) keeps the default loader.
+function loadRuntimeResource(type, name, defaultUri, integrity) {
+  const file = defaultUri.split('?')[0].split('/').pop();
+  if (!(file in dotnetSizes)) return undefined;
+  return fetch(defaultUri, integrity ? { integrity, credentials: 'same-origin' } : { credentials: 'same-origin' }).then((res) => {
+    if (!res.ok || !res.body) { dotnetDone += dotnetSizes[file]; showProgress(); return res; }
+    const reader = res.body.getReader();
+    const body = new ReadableStream({
+      async pull(ctl) {
+        const { done, value } = await reader.read();
+        if (done) { ctl.close(); return; }
+        dotnetDone += value.byteLength;
+        showProgress();
+        ctl.enqueue(value);
+      },
+    });
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  });
+}
+// Audio latency: SDL3's Emscripten backend plays through a ScriptProcessorNode
+// whose buffer is 2x SDL_AUDIO_DEVICE_SAMPLE_FRAMES (SDL reads hints from the
+// environment). SDL's default (1024 -> 2048 frames, ~43 ms per buffer at 48 kHz)
+// made sound effects noticeably late; 512 -> 1024 frames (~21 ms) still covers
+// a 60 fps frame on the main thread. Override with ?audiobuf=N (power of two,
+// 128..4096): raise it if a slow machine crackles, lower it to experiment.
+const audioBufParam = parseInt(new URLSearchParams(location.search).get('audiobuf'), 10);
+const audioBuf = (audioBufParam >= 128 && audioBufParam <= 4096 && (audioBufParam & (audioBufParam - 1)) === 0) ? audioBufParam : 512;
+import { dotnet } from './_framework/dotnet.js';
+const runtime = await dotnet.withDiagnosticTracing(false).withModuleConfig({ canvas })
+  .withEnvironmentVariable('SDL_AUDIO_DEVICE_SAMPLE_FRAMES', String(audioBuf))
+  .withResourceLoader(loadRuntimeResource).create();
+trace(`audio buffer ${audioBuf * 2} frames`);
+trace(`runtime created (${MB(dotnetDone)} MB counted)`);
+const { Module, getAssemblyExports, getConfig } = runtime;
+function writeFile(rel, data) {
+  const slash = rel.lastIndexOf('/');
+  const dir = '/content' + (slash >= 0 ? '/' + rel.slice(0, slash) : '');
+  Module.FS_createPath('/', dir.slice(1), true, true);
+  Module.FS_createDataFile(dir, rel.slice(slash + 1), data, true, true, true);
+}
+
+phase = 'assets';
+showProgress();
+async function fetchBootContent() {
+  let next = 0;
+  async function worker() {
+    while (next < bootFiles.length) {
+      const f = bootFiles[next++];
+      writeFile(f[0], await fetchBytes(f));
+      bootDone += f[1];
+      showProgress();
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker));
+  trace(`boot content fetched (${bootFiles.length} files)`);
+}
+await fetchBootContent();
+phase = 'starting';
+setStatus('starting…', 1);
+document.getElementById('status').remove();
+
+const exports = (await getAssemblyExports(getConfig().mainAssemblyName)).CutTheRope;
+
+// Deferred files: one promise per file, shared by the background prefetch
+// and on-demand requests from the game.
+const inflight = new Map();
+const ensureCached = (f) => {
+  if (!inflight.has(f[0])) inflight.set(f[0], fetchCached(f).then((r) => (cache ? null : r)));
+  return inflight.get(f[0]);
+};
+globalThis.athRequestContent = (name) => {
+  const f = deferred.get(name);
+  if (!f) { exports.WebContent.ContentReady(name); return; }
+  trace(`game requests ${f[0]}`);
+  ensureCached(f)
+    .then((res) => (res ? res.arrayBuffer() : fetchCached(f).then((r) => r.arrayBuffer())))
+    .then((buf) => { writeFile(f[0], new Uint8Array(buf)); trace(`${f[0]} ready`); exports.WebContent.ContentReady(name); })
+    .catch((e) => { console.error('content', f[0], e); inflight.delete(f[0]); exports.WebContent.ContentReady(name); });
+};
+// Game cursors (content/*.cur, see src/WebCursor.cs) as CSS cursors; the
+// hotspot comes from the .cur file. Browsers without .cur support fall back.
+const byPath = new Map(manifest.files.map((f) => ['content/' + f[0], f]));
+globalThis.athSetCursor = (path) => {
+  const f = byPath.get(path);
+  canvas.style.cursor = f ? `url("${fileUrl(f)}"), auto` : '';
+  trace(`cursor ${path}`);
+};
+exports.WebContent.SetDeferred([...deferred.keys()].join('\n'));
+exports.WebContent.SetTrace(TRACE);
+trace('content written');
+
+if (exports.WebMain.Boot()) {
+  // FNA's Game.Run() returns on the web; drive frames from here.
+  trace('Boot() done');
+  if (TRACE) setTimeout(() => {
+    const sdl = Module.SDL3, node = sdl && sdl.audio_playback && sdl.audio_playback.scriptProcessorNode;
+    const ctx = sdl && sdl.audioContext;
+    trace(`audio: scriptProcessor ${node ? node.bufferSize : 'none'} frames, ${ctx ? ctx.sampleRate + ' Hz, baseLatency ' + ctx.baseLatency + ', ' + ctx.state : 'no context'}`);
+  }, 3000);
+  // Make SDL re-read the canvas CSS size in case FNA resized the window
+  // while creating the graphics device.
+  window.dispatchEvent(new Event('resize'));
+  let step = () => { if (exports.WebMain.Frame()) requestAnimationFrame(step); };
+  if (TRACE) {
+    let n = 0, sum = 0, max = 0, t0 = performance.now();
+    step = () => {
+      const a = performance.now();
+      const more = exports.WebMain.Frame();
+      const d = performance.now() - a;
+      n++; sum += d; max = Math.max(max, d);
+      if (a - t0 > 2000) {
+        trace(`${(1000 * n / (a - t0)).toFixed(1)} fps, Frame() avg ${(sum / n).toFixed(2)}ms max ${max.toFixed(1)}ms`);
+        n = sum = max = 0; t0 = a;
+      }
+      if (more) requestAnimationFrame(step);
+    };
+  }
+  requestAnimationFrame(step);
+  // Background prefetch of deferred files (two at a time, box order) once
+  // the menu is up, then cache cleanup.
+  if (cache) {
+    setTimeout(async () => {
+      const queue = [...deferred.values()];
+      const worker = async () => { while (queue.length) await ensureCached(queue.shift()).catch(() => {}); };
+      await Promise.all([worker(), worker()]);
+      // Drop cache entries from older builds.
+      const live = new Set(manifest.files.map(fileUrl));
+      for (const req of await cache.keys()) if (!live.has(req.url)) cache.delete(req);
+    }, 3000);
+  }
+}
+</script>
+</body>
+</html>
