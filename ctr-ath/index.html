@@ -58,7 +58,10 @@ const trace = TRACE ? (m) => console.log(`[trace ${performance.now().toFixed(0)}
 // (src/WebContent.cs).
 const CACHE_NAME = 'ath-content';
 const cache = await (globalThis.caches ? caches.open(CACHE_NAME).catch(() => null) : null);
-const fileUrl = (f) => new URL('content/' + f[0].split('/').map(encodeURIComponent).join('/') + '?v=' + f[2], location.href).href;
+// Resolve against document.baseURI (not location.href) so a <base href> wins:
+// portals that document.write() this page into an iframe set <base> to the
+// real folder while location still points at the portal page.
+const fileUrl = (f) => new URL('content/' + f[0].split('/').map(encodeURIComponent).join('/') + '?v=' + f[2], document.baseURI).href;
 
 async function fetchCached(f) {
   const url = fileUrl(f);
