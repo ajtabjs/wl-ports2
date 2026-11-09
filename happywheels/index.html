@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net data: blob:; script-src 'self' https://cdn.jsdelivr.net https://tinklehost.github.io 'unsafe-inline' 'unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net https://happy-wheels-api.nawsifsspammail.workers.dev https://totaljerkface.com blob: data:; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net https://tinklehost.github.io https://totaljerkface.com https://happy-wheels-api.nawsifsspammail.workers.dev https://raw.githubusercontent.com data: blob:; script-src 'self' https://cdn.jsdelivr.net https://tinklehost.github.io 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' https://cdn.jsdelivr.net https://tinklehost.github.io https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' https://cdn.jsdelivr.net https://totaljerkface.com https://raw.githubusercontent.com data: blob:; media-src 'self' https://cdn.jsdelivr.net https://raw.githubusercontent.com data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://totaljerkface.com https://happy-wheels-api.nawsifsspammail.workers.dev https://raw.githubusercontent.com blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data:; object-src 'none'; base-uri 'self' https://cdn.jsdelivr.net">
 <base href="https://cdn.jsdelivr.net/gh/ajtabjs/wl-ports2@96621008186ec594d2165805114f5b7254c4fb3f
 /happywheels/">
 <script src="https://tinklehost.github.io/intro.js"></script>
@@ -28,6 +28,7 @@ window.addEventListener('unhandledrejection',event=>showFailure(String(event.rea
 <script src="./offline-catalog.js"></script>
 <script src="./offline/browse-catalog.js"></script>
 <script src="./offline-api.js"></script>
+<script src="./audio-loader.js"></script>
 <script src="./js/dependencies.js"></script>
 <script src="./js/index.js"></script>
 </body>
