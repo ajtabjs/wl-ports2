@@ -12,7 +12,7 @@
       const loaded=await new Promise(resolve=>{
         let complete=false;
         const finish=value=>{if(!complete){complete=true;clearTimeout(timer);resolve(value);}};
-        const timer=setTimeout(()=>finish(false),45000);
+        const timer=setTimeout(()=>finish(false),10000);
         try {
           sound=new Howl({src:[url],format:[url.endsWith('.ogg')?'ogg':'mp3'],sprite,preload:true,onload:()=>finish(true),onloaderror:()=>finish(false)});
           lastSound=sound;

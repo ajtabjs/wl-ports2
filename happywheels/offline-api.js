@@ -56,4 +56,25 @@
     if (blobURL) this.addEventListener('loadend', () => URL.revokeObjectURL(blobURL), {once:true});
     return send.call(this, null);
   };
+
+  // The renderer fetches its Steam feature flags from totaljerkface.com, which only
+  // permits that origin. Serve the same response locally so startup does not fail CORS.
+  const steamConfig = {
+    featureFlags: {enableCalendar: true, enableCalendarQuickButtons: true},
+    unbeatableFeaturedLevelIds: [589745, 4576802, 1945319, 130184],
+    menuStatus: null
+  };
+  const nativeFetch = window.fetch;
+  if (nativeFetch) window.fetch = function (input, init) {
+    try {
+      const url = new URL(typeof input === 'string' ? input : input.url, document.baseURI);
+      if (url.hostname === 'totaljerkface.com' && url.pathname === '/hw-steam/config.json') {
+        return Promise.resolve(new Response(JSON.stringify(steamConfig), {
+          status: 200,
+          headers: {'Content-Type': 'application/json'}
+        }));
+      }
+    } catch {}
+    return nativeFetch.call(this, input, init);
+  };
 })();
