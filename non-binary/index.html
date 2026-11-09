@@ -59,9 +59,9 @@
       var buildUrl = "Build";
       var loaderUrl = buildUrl + "/Builds.loader.js";
       var config = {
-        dataUrl: buildUrl + "/Builds.data.br",
-        frameworkUrl: buildUrl + "/Builds.framework.js.br",
-        codeUrl: buildUrl + "/Builds.wasm.br",
+        dataUrl: buildUrl + "/Builds.data",
+        frameworkUrl: buildUrl + "/Builds.framework.js",
+        codeUrl: buildUrl + "/Builds.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "owof games",
         productName: "non-binary",
@@ -69,26 +69,42 @@
         showBanner: unityShowBanner,
       };
 
-      function loadFrameworkUrl() {
-        return fetch(config.frameworkUrl).then(function (response) {
-          if (!response.ok) {
-            throw new Error("Failed to download " + config.frameworkUrl + " (HTTP " + response.status + ")");
+      function getParts(file, start, end) {
+        var parts = [];
+        for (var i = start; i <= end; i++) {
+          parts.push(file + ".part" + i);
+        }
+        return parts;
+      }
+
+      function mergeFiles(fileParts, cacheKey, contentType, expectedSize) {
+        function checkSize(blob) {
+          if (blob.size !== expectedSize) {
+            throw new Error("Merged " + cacheKey + " is " + blob.size + " bytes, expected " + expectedSize + ".");
           }
-          return response.arrayBuffer();
-        }).then(function (buffer) {
-          var bytes = new Uint8Array(buffer);
-          var head = String.fromCharCode.apply(null, bytes.subarray(0, 40));
-          if (head.indexOf("UnityWeb Compressed Content") === -1) {
-            return buffer;
-          }
-          if (typeof DecompressionStream === "undefined") {
-            throw new Error("The server did not send \"Content-Encoding: br\" for " + config.frameworkUrl + ".");
-          }
-          return new Response(
-            new Blob([buffer]).stream().pipeThrough(new DecompressionStream("br"))
-          ).arrayBuffer();
-        }).then(function (buffer) {
-          return URL.createObjectURL(new Blob([buffer], { type: "text/javascript" }));
+          return blob;
+        }
+        return caches.open("10min-cache").then(function (cache) {
+          return cache.match(cacheKey).then(function (cached) {
+            if (cached) {
+              return checkSize(cached.blob());
+            }
+            return Promise.all(fileParts.map(function (part) {
+              return fetch(part).then(function (response) {
+                if (!response.ok) {
+                  throw new Error("Failed to download " + part + " (HTTP " + response.status + ")");
+                }
+                return response.arrayBuffer();
+              });
+            })).then(function (buffers) {
+              var blob = checkSize(new Blob(buffers, { type: contentType }));
+              return cache.put(cacheKey, new Response(blob)).then(function () {
+                return blob;
+              });
+            });
+          });
+        }).then(function (blob) {
+          return URL.createObjectURL(blob);
         });
       }
 
@@ -137,8 +153,12 @@
         });
       }
 
-      loadFrameworkUrl().then(function (frameworkUrl) {
-        config.frameworkUrl = frameworkUrl;
+      Promise.all([
+        mergeFiles(getParts(buildUrl + "/Builds.data", 0, 1), "non-binary-data-27856318", "application/octet-stream", 27856318),
+        mergeFiles(getParts(buildUrl + "/Builds.wasm", 0, 1), "non-binary-wasm-31898127", "application/wasm", 31898127)
+      ]).then(function (urls) {
+        config.dataUrl = urls[0];
+        config.codeUrl = urls[1];
         return loadScript(loaderUrl);
       }).then(function () {
         return createUnityInstance(canvas, config, (progress) => {
