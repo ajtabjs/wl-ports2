@@ -27,10 +27,10 @@
     <script>
       var container = document.querySelector("#unity-container");
       var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-      var warningBanner = document.querySelector("#unity-warning");
+      var loadingbar = document.querySelector("#unity-loading-bar");
+      var progressbarfull = document.querySelector("#unity-progress-bar-full");
+      var fullscreenbutton = document.querySelector("#unity-fullscreen-button");
+      var warningbanner = document.querySelector("#unity-warning");
 
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
@@ -38,38 +38,38 @@
       // Modify or remove this function to customize the visually presented
       // way that non-critical warnings and error messages are presented to the
       // user.
-      function unityShowBanner(msg, type) {
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+      function unityshowbanner(msg, type) {
+        function updatebannervisibility() {
+          warningbanner.style.display = warningbanner.children.length ? 'block' : 'none';
         }
         var div = document.createElement('div');
         div.innerHTML = msg;
-        warningBanner.appendChild(div);
+        warningbanner.appendChild(div);
         if (type == 'error') div.style = 'background: red; padding: 10px;';
         else {
           if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
           setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
+            warningbanner.removeChild(div);
+            updatebannervisibility();
           }, 5000);
         }
-        updateBannerVisibility();
+        updatebannervisibility();
       }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Builds.loader.js";
+      var buildurl = "Build";
+      var loaderurl = buildurl + "/Builds.loader.js";
       var config = {
-        dataUrl: buildUrl + "/Builds.data",
-        frameworkUrl: buildUrl + "/Builds.framework.js",
-        codeUrl: buildUrl + "/Builds.wasm",
+        dataUrl: buildurl + "/Builds.data",
+        frameworkUrl: buildurl + "/Builds.framework.js",
+        codeUrl: buildurl + "/Builds.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "owof games",
         productName: "non-binary",
         productVersion: "1.0.0",
-        showBanner: unityShowBanner,
+        showBanner: unityshowbanner,
       };
 
-      function getParts(file, start, end) {
+      function getparts(file, start, end) {
         var parts = [];
         for (var i = start; i <= end; i++) {
           parts.push(file + ".part" + i);
@@ -77,19 +77,19 @@
         return parts;
       }
 
-      function mergeFiles(fileParts, cacheKey, contentType, expectedSize) {
-        function checkSize(blob) {
-          if (blob.size !== expectedSize) {
-            throw new Error("Merged " + cacheKey + " is " + blob.size + " bytes, expected " + expectedSize + ".");
+      function mergefiles(fileparts, cachekey, contenttype, expectedsize) {
+        function checksize(blob) {
+          if (blob.size !== expectedsize) {
+            throw new Error("Merged " + cachekey + " is " + blob.size + " bytes, expected " + expectedsize + ".");
           }
           return blob;
         }
         return caches.open("10min-cache").then(function (cache) {
-          return cache.match(cacheKey).then(function (cached) {
+          return cache.match(cachekey).then(function (cached) {
             if (cached) {
-              return checkSize(cached.blob());
+              return checksize(cached.blob());
             }
-            return Promise.all(fileParts.map(function (part) {
+            return Promise.all(fileparts.map(function (part) {
               return fetch(part).then(function (response) {
                 if (!response.ok) {
                   throw new Error("Failed to download " + part + " (HTTP " + response.status + ")");
@@ -97,8 +97,8 @@
                 return response.arrayBuffer();
               });
             })).then(function (buffers) {
-              var blob = checkSize(new Blob(buffers, { type: contentType }));
-              return cache.put(cacheKey, new Response(blob)).then(function () {
+              var blob = checksize(new Blob(buffers, { type: contenttype }));
+              return cache.put(cachekey, new Response(blob)).then(function () {
                 return blob;
               });
             });
@@ -131,7 +131,7 @@
         canvas.style.width = window.innerWidth + 'px';
         canvas.style.height = window.innerHeight + 'px';
 
-        unityShowBanner('WebGL builds are not supported on mobile devices.');
+        unityshowbanner('WebGL builds are not supported on mobile devices.');
       } else {
         // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
 
@@ -139,9 +139,9 @@
         canvas.style.height = "540px";
       }
 
-      loadingBar.style.display = "block";
+      loadingbar.style.display = "block";
 
-      function loadScript(url) {
+      function loadscript(url) {
         return new Promise(function (resolve, reject) {
           var script = document.createElement("script");
           script.src = url;
@@ -154,20 +154,20 @@
       }
 
       Promise.all([
-        mergeFiles(getParts(buildUrl + "/Builds.data", 0, 1), "non-binary-data-27856318", "application/octet-stream", 27856318),
-        mergeFiles(getParts(buildUrl + "/Builds.wasm", 0, 1), "non-binary-wasm-31898127", "application/wasm", 31898127)
+        mergefiles(getparts(buildurl + "/Builds.data", 0, 1), "non-binary-data-27856318", "application/octet-stream", 27856318),
+        mergefiles(getparts(buildurl + "/Builds.wasm", 0, 1), "non-binary-wasm-31898127", "application/wasm", 31898127)
       ]).then(function (urls) {
         config.dataUrl = urls[0];
         config.codeUrl = urls[1];
-        return loadScript(loaderUrl);
+        return loadscript(loaderurl);
       }).then(function () {
         return createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
+          progressbarfull.style.width = 100 * progress + "%";
         });
-      }).then((unityInstance) => {
-        loadingBar.style.display = "none";
-        fullscreenButton.onclick = () => {
-          unityInstance.SetFullscreen(1);
+      }).then((unityinstance) => {
+        loadingbar.style.display = "none";
+        fullscreenbutton.onclick = () => {
+          unityinstance.SetFullscreen(1);
         };
       }).catch((message) => {
         alert(message);
