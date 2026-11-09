@@ -21,7 +21,6 @@ window.addEventListener('hw-ready',()=>document.getElementById('loading')?.remov
 function showFailure(message){const el=document.getElementById('loading');if(el){el.classList.add('error');document.getElementById('status').textContent=message;}}
 window.addEventListener('error',event=>{if(event.target?.tagName==='SCRIPT')showFailure('A game file could not load. Upload the complete dist folder.');else if(event.message)showFailure(event.message);},true);
 window.addEventListener('unhandledrejection',event=>showFailure(String(event.reason?.message||event.reason)));
-if(location.protocol==='file:')showFailure('Serve this folder over HTTP, or upload its contents to GitHub Pages.');
 </script>
 <script src="./browser-preferences.js"></script>
 <script src="./backend-config.js"></script>
