@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+<base href="https://cdn.jsdelivr.net/gh/ajtabjs/wl-ports2@da0980255d973d9f44cc0cc8a4362afe8d2a9eac/stanley-ud/">
+<script src="/k/ivy-runtime.js"></script>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Stanley Parable: Ultra Deluxe</title>
+<link rel="icon" href="data:,">
+<link href="https://fonts.upset.dev/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+body{display:flex;align-items:center;justify-content:center}
+#game{display:none;width:100vw;height:100vh;background:#000;outline:none}
+#loader-screen{position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;background:#000;font-family:'Figtree',Arial,sans-serif;text-align:center;transition:opacity .4s ease}
+#loader-screen.hidden{opacity:0;pointer-events:none}
+#loader-screen h1{color:#fff;font-size:clamp(1.5rem,4vw,2rem);font-weight:600;letter-spacing:.05em}
+#loader-art{width:min(220px,32vh);height:auto;border-radius:20px;user-select:none;-webkit-user-drag:none}
+#progress{width:min(420px,72vw);height:6px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden}
+#progress-fill{width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#5BCEFA,#F5A9B8);transition:width .2s ease}
+#status{min-height:1.4em;color:#888;font-size:.95rem;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<canvas id="game" tabindex="0"></canvas>
+<div id="loader-screen">
+  <h1>portable bucket loader</h1>
+  <img id="loader-art" src="stanleys-bucket.png" alt="" width="512" height="512">
+  <div id="progress" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div id="progress-fill"></div>
+  </div>
+  <div id="status" role="status">Loading…</div>
+</div>
+<script src="Build/Stanley.ivy.loader.js"></script>
+<script>
+const stanleyAssets = {"StreamingAssets/scenes/memoryzonepartone_ud_master": [397032370, "application/octet-stream", ["./chunks/memoryzonepartone-000", "./chunks/memoryzonepartone-001", "./chunks/memoryzonepartone-002", "./chunks/memoryzonepartone-003", "./chunks/memoryzonepartone-004", "./chunks/memoryzonepartone-005", "./chunks/memoryzonepartone-006", "./chunks/memoryzonepartone-007", "./chunks/memoryzonepartone-008", "./chunks/memoryzonepartone-009", "./chunks/memoryzonepartone-010", "./chunks/memoryzonepartone-011", "./chunks/memoryzonepartone-012", "./chunks/memoryzonepartone-013", "./chunks/memoryzonepartone-014", "./chunks/memoryzonepartone-015", "./chunks/memoryzonepartone-016", "./chunks/memoryzonepartone-017", "./chunks/memoryzonepartone-018", "./chunks/memoryzonepartone-019", "./chunks/memoryzonepartone-020", "./chunks/memoryzonepartone-021", "./chunks/memoryzonepartone-022", "./chunks/memoryzonepartone-023", "./chunks/memoryzonepartone-024"]]};
+const stanleyNativeFetch = window.fetch.bind(window);
+const stanleyAssetBase = new URL('./', document.baseURI).href;
+function stanleyAssetEntry(url) {
+    const absolute = new URL(url, document.baseURI).href;
+    return absolute.startsWith(stanleyAssetBase)
+        ? stanleyAssets[decodeURIComponent(absolute.slice(stanleyAssetBase.length))]
+        : undefined;
+}
+window.fetch = async function (input, options) {
+    const entry = stanleyAssetEntry(input instanceof Request ? input.url : input);
+    if (!entry) return stanleyNativeFetch(input, options);
+    const [size, type, parts] = entry;
+    let index = 0;
+    let reader;
+    let received = 0;
+    const stream = new ReadableStream({
+        async pull(controller) {
+            while (true) {
+                if (!reader) {
+                    if (index === parts.length) {
+                        if (received !== size) throw new Error('Incomplete Stanley asset');
+                        controller.close();
+                        return;
+                    }
+                    const response = await stanleyNativeFetch(parts[index++], { signal: options?.signal });
+                    if (!response.ok) throw new Error('Stanley asset chunk returned HTTP ' + response.status);
+                    reader = response.body.getReader();
+                }
+                const { done, value } = await reader.read();
+                if (!done) {
+                    received += value.byteLength;
+                    controller.enqueue(value);
+                    return;
+                }
+                reader.releaseLock();
+                reader = undefined;
+            }
+        },
+        cancel(reason) { return reader?.cancel(reason); }
+    });
+    return new Response(stream, { headers: { 'Content-Length': String(size), 'Content-Type': type } });
+};
+
+const canvas = document.querySelector('#game');
+const loaderScreen = document.querySelector('#loader-screen');
+const progressBar = document.querySelector('#progress');
+const progressFill = document.querySelector('#progress-fill');
+const status = document.querySelector('#status');
+
+const downloadShare = 0.85;
+const cacheName = 'stanley-build-v1';
+let shownProgress = 0;
+
+function setProgress(value, message) {
+    const clamped = Math.max(0, Math.min(1, value || 0));
+    shownProgress = Math.max(shownProgress, clamped);
+    const percent = Math.round(shownProgress * 100);
+    progressFill.style.width = percent + '%';
+    progressBar.setAttribute('aria-valuenow', String(percent));
+    if (message) status.textContent = message;
+}
+
+const download = { loaded: 0, total: 0 };
+
+function trackTotal(bytes) {
+    download.total += bytes || 0;
+    renderDownloadProgress();
+}
+
+function trackLoaded(bytes) {
+    download.loaded += bytes || 0;
+    renderDownloadProgress();
+}
+
+function renderDownloadProgress() {
+    if (!download.total) return;
+    const ratio = Math.min(download.loaded / download.total, 1);
+    const percent = Math.round(ratio * 100);
+    setProgress(downloadShare * ratio, 'Downloading game files… ' + percent + '%');
+}
+
+function getParts(file, start, end) {
+    const parts = [];
+    for (let i = start; i <= end; i++) parts.push(file + '.part' + i);
+    return parts;
+}
+
+async function openCache() {
+    try {
+        return window.caches ? await caches.open(cacheName) : null;
+    } catch (error) {
+        console.warn('Cache storage unavailable:', error);
+        return null;
+    }
+}
+
+async function readPart(part) {
+    const response = await stanleyNativeFetch(part, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Failed to fetch ' + part + ' (HTTP ' + response.status + ')');
+    const length = Number(response.headers.get('content-length')) || 0;
+    trackTotal(length);
+
+    if (!response.body) {
+        const buffer = await response.arrayBuffer();
+        trackLoaded(buffer.byteLength);
+        return buffer;
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        trackLoaded(value.byteLength);
+    }
+    return new Blob(chunks);
+}
+
+async function mergeFiles(fileParts, cacheKey) {
+    const cache = await openCache();
+    if (cache) {
+        const cached = await cache.match(cacheKey).catch(() => undefined);
+        if (cached) {
+            const blob = await cached.blob();
+            trackTotal(blob.size);
+            trackLoaded(blob.size);
+            return URL.createObjectURL(blob);
+        }
+    }
+
+    const merged = new Blob(await Promise.all(fileParts.map(readPart)));
+
+    if (cache) {
+        try {
+            await cache.put(cacheKey, new Response(merged, { headers: { 'Content-Type': 'application/octet-stream' } }));
+        } catch (error) {
+            console.warn('Could not cache ' + cacheKey + ':', error);
+        }
+    }
+
+    return URL.createObjectURL(merged);
+}
+
+async function loadGame() {
+    setProgress(0, 'Loading…');
+
+    const dataPath = 'Build/Stanley.data.unityweb';
+    const codePath = 'Build/Stanley.wasm.unityweb';
+
+    const [dataUrl, codeUrl] = await Promise.all([
+        mergeFiles(getParts(dataPath, 0, 5), dataPath),
+        mergeFiles([codePath], codePath)
+    ]);
+
+    setProgress(downloadShare, 'Starting…');
+    canvas.style.display = 'block';
+
+    const game = await createUnityInstance(canvas, {
+        dataUrl,
+        frameworkUrl: 'Build/Stanley.framework.js',
+        codeUrl,
+        streamingAssetsUrl: new URL('StreamingAssets', document.baseURI).href,
+        companyName: 'Crows Crows Crows',
+        productName: 'The Stanley Parable: Ultra Deluxe',
+        productVersion: '1.0',
+        devicePixelRatio: 1,
+        autoSyncPersistentDataPath: true
+    }, progress => {
+        setProgress(downloadShare + (1 - downloadShare) * progress, 'Loading… ' + Math.round(progress * 100) + '%');
+    });
+
+    URL.revokeObjectURL(dataUrl);
+    URL.revokeObjectURL(codeUrl);
+    return game;
+}
+
+loadGame().then(game => {
+    window.stanley = game;
+    loaderScreen.classList.add('hidden');
+    setTimeout(() => loaderScreen.remove(), 500);
+    canvas.focus();
+}).catch(error => {
+    status.textContent = String(error);
+    console.error(error);
+});
+</script>
+</body>
+</html>
