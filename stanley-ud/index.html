@@ -18,7 +18,7 @@ body{display:flex;align-items:center;justify-content:center}
 #loader-screen h1{color:#fff;font-size:clamp(1.5rem,4vw,2rem);font-weight:600;letter-spacing:.05em}
 #loader-art{width:min(220px,32vh);height:auto;border-radius:20px;user-select:none;-webkit-user-drag:none}
 #progress{width:min(420px,72vw);height:6px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden}
-#progress-fill{width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#5BCEFA,#F5A9B8);transition:width .2s ease}
+#progress-fill{width:0;height:100%;border-radius:inherit;background:#ffeb3b;transition:width .2s ease}
 #status{min-height:1.4em;color:#888;font-size:.95rem;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -97,23 +97,12 @@ function setProgress(value, message) {
     if (message) status.textContent = message;
 }
 
-const download = { loaded: 0, total: 0 };
+const partProgress = { loaded: 0, total: 0 };
 
-function trackTotal(bytes) {
-    download.total += bytes || 0;
-    renderDownloadProgress();
-}
-
-function trackLoaded(bytes) {
-    download.loaded += bytes || 0;
-    renderDownloadProgress();
-}
-
-function renderDownloadProgress() {
-    if (!download.total) return;
-    const ratio = Math.min(download.loaded / download.total, 1);
-    const percent = Math.round(ratio * 100);
-    setProgress(downloadShare * ratio, 'Downloading game files… ' + percent + '%');
+function renderPartProgress() {
+    if (!partProgress.total) return;
+    const ratio = Math.min(partProgress.loaded / partProgress.total, 1);
+    setProgress(downloadShare * ratio, 'Downloading game files… ' + partProgress.loaded + '/' + partProgress.total);
 }
 
 function getParts(file, start, end) {
@@ -134,39 +123,30 @@ async function openCache() {
 async function readPart(part) {
     const response = await stanleyNativeFetch(part, { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to fetch ' + part + ' (HTTP ' + response.status + ')');
-    const length = Number(response.headers.get('content-length')) || 0;
-    trackTotal(length);
-
-    if (!response.body) {
-        const buffer = await response.arrayBuffer();
-        trackLoaded(buffer.byteLength);
-        return buffer;
-    }
-
-    const reader = response.body.getReader();
-    const chunks = [];
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        trackLoaded(value.byteLength);
-    }
-    return new Blob(chunks);
+    return response.arrayBuffer();
 }
 
 async function mergeFiles(fileParts, cacheKey) {
+    partProgress.total += fileParts.length;
+    renderPartProgress();
+
     const cache = await openCache();
     if (cache) {
         const cached = await cache.match(cacheKey).catch(() => undefined);
         if (cached) {
             const blob = await cached.blob();
-            trackTotal(blob.size);
-            trackLoaded(blob.size);
+            partProgress.loaded += fileParts.length;
+            renderPartProgress();
             return URL.createObjectURL(blob);
         }
     }
 
-    const merged = new Blob(await Promise.all(fileParts.map(readPart)));
+    const merged = new Blob(await Promise.all(fileParts.map(async part => {
+        const buffer = await readPart(part);
+        partProgress.loaded += 1;
+        renderPartProgress();
+        return buffer;
+    })));
 
     if (cache) {
         try {
