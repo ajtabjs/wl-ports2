@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dreams of Aether (Yet Another Static Recompiler web build)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #canvas { display: block; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); outline: none; }
+  #status { position: fixed; left: 10px; top: 8px; color: #bbb; font: 14px system-ui, sans-serif; pointer-events: none; }
+  #hud { position: fixed; right: 8px; top: 8px; display: flex; gap: 6px; align-items: center; z-index: 10; }
+  #fps { color: #8f8; background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 4px;
+         font: 600 13px ui-monospace, Menlo, Consolas, monospace; pointer-events: none; min-width: 52px; text-align: right; }
+  #mem { color: #ccc; background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 4px;
+         font: 12px ui-monospace, Menlo, Consolas, monospace; pointer-events: none; }
+  #mem:empty { display: none; }
+  #fs { color: #ddd; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); border-radius: 4px;
+        font: 13px system-ui, sans-serif; padding: 2px 8px; cursor: pointer; }
+  #fs:hover { background: rgba(60,60,60,.8); }
+  .tog { color: #999; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.2); border-radius: 4px;
+         font: 12px ui-monospace, Menlo, Consolas, monospace; padding: 2px 7px; cursor: pointer; }
+  .tog.on { color: #8f8; border-color: rgba(120,255,120,.5); }
+  #hud.hide-fps #fps { display: none; }
+  #hud.hide-mem #mem { display: none; }
+  #crash { display: none; position: fixed; inset: 10% 8%; z-index: 20; background: rgba(20,0,0,.92); color: #fdd;
+           border: 1px solid #a44; border-radius: 6px; padding: 12px 14px; font: 13px system-ui, sans-serif; flex-direction: column; gap: 8px; }
+  #crash pre { flex: 1; overflow: auto; margin: 0; background: rgba(0,0,0,.5); padding: 8px; font: 12px ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  #crash button { align-self: flex-start; color: #fff; background: #733; border: 1px solid #c66; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+  #ended { display: none; position: fixed; inset: 0; z-index: 30; background: rgba(8,6,14,.88); color: #eee;
+           font: 14px system-ui, sans-serif; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  #ended b { font-size: 20px; }
+  #ended p { margin: 0; max-width: 520px; text-align: center; color: #bbb; }
+  #ended .row { display: flex; gap: 10px; }
+  #ended button { color: #fff; background: #475; border: 1px solid #8b9; border-radius: 4px;
+                  padding: 7px 16px; font: 14px system-ui, sans-serif; cursor: pointer; }
+  #ended button:hover { filter: brightness(1.15); }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0" width="960" height="540"></canvas>
+<div id="status">Loading…</div>
+<div id="hud"><button id="tfps" class="tog" type="button" title="Show or hide the fps counter">fps</button><button id="tmem" class="tog" type="button" title="Show or hide the memory/debug readout">mem</button><span id="mem" title="wasm heap / limit (malloc in use), live guest threads"></span><span id="fps">-- fps</span><button id="fs" type="button" title="Toggle fullscreen">⛶ Fullscreen</button></div>
+<div id="crash"><b id="crashtitle">The game stopped. Please copy this text into the bug report.</b><pre id="crashlog"></pre><button id="crashcopy" type="button">Copy to clipboard</button></div>
+<div id="ended"><b>The game exited.</b><p id="endedtext"></p><div class="row"><button id="again" type="button">Start again</button></div></div>
+<script>
+  const canvas = document.getElementById('canvas');
+  const status = document.getElementById('status');
+  function fit() {
+    const w = canvas.width || 960, h = canvas.height || 540;
+    const s = Math.min(innerWidth / w, innerHeight / h);
+    canvas.style.width = Math.floor(w * s) + 'px';
+    canvas.style.height = Math.floor(h * s) + 'px';
+  }
+  addEventListener('resize', fit);
+  setInterval(fit, 500);
+  fit();
+  if (!('Suspending' in WebAssembly))
+    status.textContent = 'This build needs WebAssembly JSPI (Chrome 137+ or chrome://flags/#enable-experimental-webassembly-jspi).';
+  
+  
+  
+  if (/Firefox\//.test(navigator.userAgent)) {
+    const n = document.createElement('div');
+    n.style.cssText = 'position:fixed;left:10px;bottom:8px;max-width:640px;color:#fc6;background:#000c;padding:6px 8px;font:13px system-ui,sans-serif;z-index:5;cursor:pointer';
+    n.textContent = 'Firefox: set memory.phc.enabled = false in about:config and restart, otherwise the tab can crash after a few minutes (Firefox heap-checker bug with JSPI). Chrome is unaffected. (click to hide)';
+    n.onclick = () => n.remove();
+    document.body.appendChild(n);
+    setTimeout(() => n.remove(), 20000);
+  }
+  
+  
+  const logTail = [];
+  function logLine(t) { logTail.push(String(t)); if (logTail.length > 60) logTail.shift(); }
+  
+  
+  
+  const doaSeen = new Map();
+  function doaOut(t, sink) {
+    t = String(t);
+    const now = performance.now();
+    let s = doaSeen.get(t);
+    if (!s) {
+      if (doaSeen.size > 512) doaSeen.clear();
+      doaSeen.set(t, s = { n: 0, hidden: 0, last: now });
+    }
+    if (++s.n <= 5) { logLine(t); sink(t); return; }
+    s.hidden++;
+    if (now - s.last >= 10000) {
+      const note = `(${s.hidden} more: ${t})`;
+      s.hidden = 0; s.last = now;
+      logLine(note); sink(note);
+    }
+  }
+  let crashed = false;
+  
+  
+  
+  let exited = false;
+  const memText = (m) => m ? `heap ${m.heapMB.toFixed(0)}/${m.maxMB.toFixed(0)} MB, malloc ${m.usedMB.toFixed(0)} MB ` +
+    `(peak ${m.peakMB.toFixed(0)}), threads ${m.threads}/${m.threadsTotal}, textures ${m.tex} (${m.texMB.toFixed(0)} MB GPU, ` +
+    `${m.shadowMB.toFixed(0)} MB CPU), buffers ${m.bufs} (${m.bufMB.toFixed(0)} MB)` + (m.allocFail ? `, ${m.allocFail} failed allocations` : '') : 'n/a';
+  function report(what, presents, mem, tail, when) {
+    return 'doa crashed: ' + what + (when ? '\nat: ' + when : '') + '\nframes presented: ' + presents +
+      '\nmemory: ' + memText(mem) + '\nuser agent: ' + navigator.userAgent + '\n\n--- last log lines ---\n' + tail.join('\n');
+  }
+  function showPanel(title, text) {
+    document.getElementById('crashtitle').textContent = title;
+    document.getElementById('crashlog').textContent = text;
+    document.getElementById('crash').style.display = 'flex';
+  }
+  
+  function showEnded(code) {
+    if (crashed) return;
+    document.getElementById('endedtext').textContent = 'Start a new session to play again.';
+    document.getElementById('ended').style.display = 'flex';
+  }
+  
+  
+  const ENDED_URL = location.pathname + '?ended=1';
+  
+  
+  
+  
+  
+  
+  const RELOADED_KEY = 'doa.reloaded';
+  function showCrash(what) {
+    if (exited) return;
+    const mismatch = /LinkError|import requires a callable|Import #/.test(String(what));
+    if (mismatch && !crashed) {
+      try {
+        if (!sessionStorage.getItem(RELOADED_KEY)) {
+          sessionStorage.setItem(RELOADED_KEY, '1');
+          const params = new URLSearchParams(location.search);
+          params.set('v', String(Date.now()));
+          crashed = true; 
+          location.replace(location.pathname + '?' + params.toString());
+          return;
+        }
+      } catch (e) {   }
+    }
+    if (crashed) return;
+    crashed = true;
+    saveSession(false);
+    showPanel(mismatch
+      ? 'doa.js and doa.wasm are from different builds, so they cannot be linked. Reload with Ctrl+Shift+R (⌘⇧R); if this keeps happening, the deployed files are out of date.'
+      : 'The game stopped. Please copy this text into the bug report.',
+      report(what, Module.doaPresents | 0, Module.doaMem, logTail));
+  }
+  
+  
+  
+  const SESSION_KEY = 'doa.session';
+  function saveSession(running) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ running, when: new Date().toISOString(),
+        presents: Module.doaPresents | 0, mem: Module.doaMem || null, tail: logTail.slice(-40) }));
+    } catch (e) {   }
+  }
+  try {
+    const prev = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (prev && prev.running && prev.presents > 0)
+      addEventListener('load', () => showPanel('The previous session ended without a clean exit (the browser tab ' +
+        'crashed, usually because it ran out of memory). Copy this text into the bug report, then click anywhere to continue.',
+        report('tab process died (no browser-side error is reported for this)', prev.presents, prev.mem, prev.tail || [], prev.when)));
+  } catch (e) {   }
+  localStorage.removeItem(SESSION_KEY);
+  addEventListener('pagehide', () => { if (!crashed) localStorage.removeItem(SESSION_KEY); });
+  document.getElementById('crash').addEventListener('click', (e) => {
+    if (!crashed && e.target.id !== 'crashcopy') document.getElementById('crash').style.display = 'none';
+  });
+  
+  
+  
+  
+  function finishSession(code) {
+    if (exited || crashed) return;
+    exited = true;
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) {   }
+    try { if (Module.winAudio && Module.winAudio.ctx) Module.winAudio.ctx.close(); } catch (e) {   }
+    const hud = document.getElementById('hud');
+    if (hud) hud.style.display = 'none';
+    canvas.style.cursor = 'default';
+    status.style.display = '';
+    status.textContent = `The game exited (status ${code | 0}). Saving and closing the tab…`;
+    
+    
+    
+    const tryClose = () => {
+      const close = () => {
+        try { window.close(); } catch (e) {   }
+        setTimeout(() => {
+          try { window.open('', '_self'); window.close(); } catch (e) {   }
+          setTimeout(() => {
+            status.style.display = '';
+            status.textContent = `The game exited (status ${code | 0}). This tab was not opened by a script, ` +
+              'so the browser will not let the page close it — press Ctrl+W (⌘W on macOS) to close it.';
+            showEnded(code);
+          }, 100);
+        }, 100);
+      };
+      
+      if (document.fullscreenElement) document.exitFullscreen().then(close, close);
+      else close();
+    };
+    
+    
+    try {
+      if (globalThis.FS && Module.winPersistDir) {
+        let done = false;
+        FS.syncfs(false, () => { if (done) return; done = true; setTimeout(tryClose, 50); });
+        setTimeout(() => { if (!done) { done = true; tryClose(); } }, 400);
+        return;
+      }
+    } catch (e) {   }
+    setTimeout(tryClose, 0);
+  }
+  
+  
+  
+  
+  function hardExit(code) {
+    if (exited || crashed) return;
+    exited = true;
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) {   }
+    try { if (Module.winAudio && Module.winAudio.ctx) Module.winAudio.ctx.close(); } catch (e) {   }
+    const hud = document.getElementById('hud');
+    if (hud) hud.style.display = 'none';
+    canvas.style.cursor = 'default';
+    status.style.display = '';
+    status.textContent = `The game exited (status ${code | 0}).`;
+    
+    
+    try {
+      const p = document.fullscreenElement && document.exitFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {   }
+    if (window.opener) {
+      
+      
+      try { window.close(); } catch (e) {   }
+      return;
+    }
+    
+    
+    
+    showEnded(code);
+    try { location.replace(ENDED_URL); } catch (e) {   }
+  }
+  var Module = {
+    canvas,
+    doaPresents: 0, 
+    print: (t) => {
+      doaOut(t, console.log);
+      if (!exited && !crashed && String(t).indexOf('###game_end###') >= 0) hardExit(0);
+    },
+    printErr: (t) => doaOut(t, console.warn),
+    onAbort: (what) => showCrash(what),
+    onGameExit: (code) => finishSession(code), 
+    setStatus: (t) => { status.textContent = t; if (!t) status.style.display = 'none'; },
+    onRuntimeInitialized: () => {
+      try { sessionStorage.removeItem(RELOADED_KEY); } catch (e) {   }
+      status.textContent = 'Running (click the game to enable audio)';
+      setTimeout(() => status.style.display = 'none', 4000);
+      canvas.focus();
+    },
+  };
+  
+  const fpsEl = document.getElementById('fps');
+  let lastN = 0, lastT = performance.now();
+  setInterval(() => {
+    const now = performance.now(), n = Module.doaPresents | 0;
+    const fps = (n - lastN) * 1000 / (now - lastT);
+    lastN = n; lastT = now;
+    fpsEl.textContent = (n ? fps.toFixed(1) : '--') + ' fps';
+    fpsEl.style.color = fps >= 50 ? '#8f8' : fps >= 25 ? '#ff8' : '#f88';
+    const m = Module.doaMem;
+    if (m) {
+      memEl.textContent = `${m.heapMB.toFixed(0)}/${m.maxMB.toFixed(0)} MB (${m.usedMB.toFixed(0)} used) · ${m.threads} thr`;
+      memEl.style.color = m.heapMB >= m.maxMB * 0.9 ? '#f88' : m.heapMB >= m.maxMB * 0.75 ? '#ff8' : '#ccc';
+    }
+    if (n && !crashed && !exited && ++beat % 4 === 0) saveSession(true); 
+  }, 500);
+  const memEl = document.getElementById('mem');
+  const hudEl = document.getElementById('hud');
+  
+  
+  const params = new URLSearchParams(location.search);
+  
+  
+  if (params.get('ended') === '1') {
+    status.style.display = 'none';
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('endedtext').textContent = 'Start a new session to play again.';
+    document.getElementById('ended').style.display = 'flex';
+  }
+  const debugState = {
+    fps: params.get('fps') !== '0' && localStorage.getItem('yasr.hud.fps') !== '0',
+    mem: params.get('mem') !== '0' && localStorage.getItem('yasr.hud.mem') === '1',
+  };
+  function applyDebug() {
+    hudEl.classList.toggle('hide-fps', !debugState.fps);
+    hudEl.classList.toggle('hide-mem', !debugState.mem);
+    document.getElementById('tfps').classList.toggle('on', debugState.fps);
+    document.getElementById('tmem').classList.toggle('on', debugState.mem);
+    try {
+      localStorage.setItem('yasr.hud.fps', debugState.fps ? '1' : '0');
+      localStorage.setItem('yasr.hud.mem', debugState.mem ? '1' : '0');
+    } catch (e) {   }
+  }
+  document.getElementById('tfps').addEventListener('click', () => {
+    debugState.fps = !debugState.fps; applyDebug(); canvas.focus();
+  });
+  document.getElementById('tmem').addEventListener('click', () => {
+    debugState.mem = !debugState.mem; applyDebug(); canvas.focus();
+  });
+  applyDebug();
+  let beat = 0;
+  
+  const fsBtn = document.getElementById('fs');
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch((e) => console.warn('fullscreen:', e));
+    canvas.focus();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    fsBtn.textContent = document.fullscreenElement ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
+    fit();
+    canvas.focus();
+  });
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+  addEventListener('error', (e) => { if (!exited && (Module.calledRun || e.error)) showCrash(e.message || String(e.error)); });
+  addEventListener('unhandledrejection', (e) => { if (!exited) showCrash('unhandled rejection: ' + (e.reason && e.reason.stack || e.reason)); });
+  document.getElementById('again').addEventListener('click', () => { location.href = location.pathname; });
+  document.getElementById('crashcopy').addEventListener('click', () => {
+    const t = document.getElementById('crashlog').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
+      () => document.getElementById('crashcopy').textContent = 'Copied',
+      () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('crashlog'));
+              getSelection().removeAllRanges(); getSelection().addRange(r); });
+  });
+  
+  
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.warn('doa: WebGL context lost');
+    status.style.display = '';
+    status.textContent = 'The GPU context was lost (driver reset or too many WebGL pages). Reload to restart.';
+  });
+</script>
+<script>
+  (function loadRuntime() {
+    if (new URLSearchParams(location.search).get('ended') === '1') return;
+    const wasmParts = ["doa.wasm.part0", "doa.wasm.part1", "doa.wasm.part2"];
+    const dataParts = ["doa.data.part0", "doa.data.part1", "doa.data.part2"];
+    const override = new URLSearchParams(location.search).get('v');
+    const q = override ? '?v=' + encodeURIComponent(override) : '';
+    const cacheName = 'doa-split-8a97e8df76';
+    const cacheSupported = typeof caches !== 'undefined';
+    const urls = {};
+    let done = 0;
+    const total = wasmParts.length + dataParts.length;
+
+    function show() { status.textContent = `Loading game files… ${done}/${total} parts`; }
+
+    async function merged(name, parts, mime) {
+      const cacheKey = new URL(`__doa_split_cache__/${name}-${parts.length}`, document.baseURI).href;
+      let cache = null;
+      if (cacheSupported) {
+        try {
+          cache = await caches.open(cacheName);
+          if (!override) {
+            const hit = await cache.match(cacheKey);
+            if (hit) {
+              const blob = await hit.blob();
+              done += parts.length;
+              show();
+              return URL.createObjectURL(new Blob([blob], { type: mime }));
+            }
+          }
+        } catch (e) {
+          console.warn('doa: cache lookup failed, downloading parts:', e);
+          cache = null;
+        }
+      }
+      const buffers = await Promise.all(parts.map(async (part) => {
+        const response = await fetch(new URL(part, document.baseURI).href + q);
+        if (!response.ok) throw new Error(`Failed to fetch ${part}: ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        done++;
+        show();
+        return buffer;
+      }));
+      const blob = new Blob(buffers, { type: mime });
+      if (cache) {
+        cache.put(cacheKey, new Response(blob, { headers: { 'Content-Type': mime } }))
+          .catch((e) => console.warn('doa: could not cache', name, e));
+      }
+      return URL.createObjectURL(blob);
+    }
+
+    if (cacheSupported) {
+      caches.keys().then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith('doa-split-') && key !== cacheName)
+            .map((key) => caches.delete(key)))).catch(() => {});
+    }
+
+    show();
+    (async () => {
+      urls['doa.wasm'] = await merged('doa.wasm', wasmParts, 'application/wasm');
+      urls['doa.data'] = await merged('doa.data', dataParts, 'application/octet-stream');
+      Module.locateFile = (path, prefix) => urls[path] || (prefix || '') + path + q;
+      const script = document.createElement('script');
+      script.async = false;
+      script.src = 'doa.js' + q;
+      script.onerror = () => { status.textContent = 'Cannot load doa.js -- reload the page.'; };
+      document.body.appendChild(script);
+    })().catch((error) => {
+      console.error('doa: failed to load split build:', error);
+      status.textContent = 'Failed to load the game files: ' + error.message;
+    });
+  })();
+</script>
+</body>
+</html>
