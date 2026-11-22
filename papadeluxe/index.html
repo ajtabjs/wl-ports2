@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Papa's Deluxe | Port by xqnder</title>
+<meta name="description" content="Play Papa's Pizzeria Deluxe right in your browser. Fan-made web port by xqnder.">
+<meta name="theme-color" content="#e8452c">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="port.xqnder.xyz">
+<meta property="og:title" content="Papa's Deluxe | Port by xqnder">
+<meta property="og:description" content="Play Papa's Pizzeria Deluxe right in your browser. No install, saves in your browser.">
+<meta property="og:url" content="https://port.xqnder.xyz/">
+<meta property="og:image" content="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3259470/ss_e05cbcf3799998f694887ae54924786a461ca1ee.1920x1080.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://shared.akamai.steamstatic.com">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#07070a;--fg:#f4f4f5;--dim:#a1a1aa;--line:rgba(255,255,255,.12)}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+.view{position:fixed;inset:0;opacity:0;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
+.view.on{opacity:1;visibility:visible;transition:opacity .35s}
+.foot{position:relative;padding:0 24px 24px;z-index:3;text-align:center;font-size:.72rem;color:#71717a}
+.foot a{color:#a1a1aa}
+.notice{display:none;margin-bottom:14px;font-size:.8rem;background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.4);color:#fde68a;border-radius:8px;padding:8px 12px}
+@media (pointer:coarse),(max-width:700px){.notice{display:block}}
+.buy{font-size:.8rem;color:var(--dim);text-decoration:none;border-bottom:1px solid transparent}
+.buy:hover{color:var(--fg);border-color:var(--fg)}
+.card:focus-visible{transform:translateY(-8px) scale(1.04)}
+.brand{position:absolute;top:22px;left:32px;z-index:5;font-weight:800;letter-spacing:.18em;font-size:.8rem;text-transform:uppercase;color:var(--fg);text-decoration:none}
+.brand span{color:var(--dim);font-weight:500}
+
+#home{overflow-y:auto;overflow-x:hidden}
+.blur-bg{position:fixed;inset:-40px;background-size:cover;background-position:center;filter:blur(30px) brightness(.35) saturate(1.3);transform:scale(1.05);transition:background-image .5s}
+.vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 30%,var(--bg) 85%)}
+.nav{position:absolute;top:16px;right:24px;z-index:5;display:flex;gap:8px}
+.nav a,.nav button,.back{background:rgba(0,0,0,.4);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:.8rem;color:var(--fg);text-decoration:none}
+.nav a:hover,.nav button:hover{border-color:rgba(255,255,255,.5)}
+.scroll-hint{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);font-size:.75rem;color:var(--dim);letter-spacing:.15em;text-transform:uppercase;background:none;border:0;animation:bob 2s ease-in-out infinite}
+@keyframes bob{50%{transform:translate(-50%,5px)}}
+.section{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:40px 24px 80px}
+.section h2{font-size:1.5rem;margin-bottom:24px}
+.section h2 small{display:block;font-size:.75rem;font-weight:500;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px}
+.release{position:relative;padding:0 0 28px 28px;border-left:1px solid var(--line)}
+.release::before{content:"";position:absolute;left:-6px;top:4px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid #fff}
+.release:first-child::before{background:#fff;box-shadow:0 0 12px rgba(255,255,255,.6)}
+.release h3{font-size:1rem;display:flex;gap:10px;align-items:baseline;margin-bottom:4px}
+.release h3 span{font-size:.75rem;font-weight:500;color:var(--dim)}
+.release p{font-size:.85rem;color:var(--dim);margin-bottom:8px}
+.release ul{list-style:none;font-size:.88rem;line-height:1.7}
+.release li::before{content:"+ ";color:#4ade80;font-weight:700}
+.release li.fix::before{content:"~ ";color:#facc15}
+.release li.del::before{content:"- ";color:#f87171}
+.home-inner{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:80px 24px 40px}
+.home-inner h1{font-size:clamp(1.4rem,3vw,2.2rem);font-weight:700;letter-spacing:-.01em}
+.home-inner h1 small{display:block;text-align:center;font-size:.8rem;font-weight:500;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px}
+.cards{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(12px,3vw,40px);perspective:1200px}
+.card{position:relative;width:clamp(100px,min(19vw,36vh),300px);aspect-ratio:2/3;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#111 center/cover;transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s,border-color .35s;transform-style:preserve-3d;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.card:hover,.card:focus-visible{border-color:rgba(255,255,255,.5);box-shadow:0 30px 80px rgba(0,0,0,.8),0 0 60px var(--glow,rgba(255,255,255,.15));outline:none}
+.card::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.18) 50%,transparent 60%);background-size:250% 100%;background-position:var(--shine,100%) 0;pointer-events:none}
+.card .badge{color:#fff;white-space:nowrap;position:absolute;top:12px;right:12px;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:5px 9px;border-radius:999px;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border:1px solid var(--line)}
+.card .badge.live{background:#fff;color:#000;border-color:#fff}
+.card.soon{filter:saturate(.55)}
+.card.soon:hover{filter:none}
+
+#detail{background:#000}
+#detail video,#detail .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#detail .poster{background:center/cover}
+#detail video{opacity:0;transition:opacity 1s}
+#detail video.ready{opacity:1}
+#detail .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.45) 35%,transparent 60%),linear-gradient(0deg,rgba(0,0,0,.9) 0%,transparent 45%)}
+.back{position:absolute;top:16px;right:24px;z-index:5}
+.back:hover{border-color:rgba(255,255,255,.5)}
+.info{position:absolute;left:clamp(24px,3vw,44px);bottom:clamp(24px,4vh,44px);max-width:560px;z-index:2}
+.info .logo{max-width:min(420px,70vw);max-height:30vh;display:block;margin-bottom:16px;filter:drop-shadow(0 6px 20px rgba(0,0,0,.6))}
+.tags{font-weight:600;font-size:.95rem;margin-bottom:18px}
+.tags i{font-style:normal;color:var(--dim);margin:0 8px}
+.actions{display:flex;gap:10px;align-items:center;margin-bottom:18px}
+.play{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#000;border:0;border-radius:999px;padding:11px 26px;font-weight:700;font-size:.95rem;transition:transform .15s}
+.play:hover{transform:scale(1.04)}
+.play:disabled{background:rgba(255,255,255,.25);color:rgba(255,255,255,.7);cursor:not-allowed;transform:none}
+.circle{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.08);display:grid;place-items:center}
+.circle:hover{background:rgba(255,255,255,.18)}
+.meta{display:flex;gap:12px;align-items:center;font-size:.85rem;font-weight:600;margin-bottom:10px}
+.meta .pill{border:1px solid rgba(255,255,255,.5);border-radius:4px;padding:1px 6px;font-size:.72rem}
+.credit-line{font-size:.85rem;color:var(--dim);margin-bottom:12px}
+.credit-line b{color:var(--fg);font-weight:600}
+.desc{font-size:.9rem;line-height:1.55;color:#d4d4d8}
+.panel{position:absolute;right:clamp(16px,2.5vw,40px);bottom:clamp(24px,5vh,60px);z-index:2;width:240px;background:rgba(20,20,24,.55);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:10px;padding:4px 14px;font-size:.72rem}
+.panel div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
+.panel div:last-child{border:0}
+.panel span{color:var(--dim)}
+@media (max-width:760px){.panel{display:none}}
+
+#play{background:#000}
+#stage{position:absolute;inset:0}
+#stage ruffle-player{width:100%;height:100%;display:block}
+.hud{position:absolute;top:12px;right:12px;z-index:5;display:flex;gap:8px;opacity:.35;transition:opacity .2s}
+.hud:hover{opacity:1}
+.hud button{background:rgba(0,0,0,.6);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.75rem}
+#credit{position:absolute;right:18px;bottom:14px;z-index:4;pointer-events:none;font-weight:800;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:#fff;text-shadow:0 2px 0 #000,0 0 8px rgba(0,0,0,.8);transition:opacity .6s}
+#credit span{font-weight:500;opacity:.8}
+#credit.gone{opacity:0}
+#loader{position:absolute;inset:0;z-index:6;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .4s}
+#loader.hidden{opacity:0;pointer-events:none}
+#loader img{max-width:320px;max-height:30vh}
+.bar{width:260px;height:4px;background:#1c1c22;border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:#fff;transition:width .3s}
+#status{font-size:.8rem;color:var(--dim)}
+.promo{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:32px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(90deg,rgba(0,0,0,.85),rgba(0,0,0,.35)),center/cover url(https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3259470/ss_fa49fd28216cb6558918f91541e33e9472086680.1920x1080.jpg)}
+.promo h2{margin-bottom:6px}
+.promo p{color:#d4d4d8;font-size:.92rem;max-width:32em}
+.promo .play{text-decoration:none;white-space:nowrap}
+@media (max-width:700px){.promo{grid-template-columns:1fr}}
+#d-saves{display:flex;gap:10px}
+#d-saves[hidden]{display:none}
+.nav button.dot{position:relative}
+.nav button.dot::after{content:"";position:absolute;top:4px;right:6px;width:7px;height:7px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444}
+#toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);z-index:50;background:#fff;color:#000;font-size:.85rem;font-weight:600;padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+#toast.on{opacity:1;transform:translate(-50%,0)}</style>
+</head>
+<body>
+
+<section id="home" class="view">
+  <div class="blur-bg" id="home-bg"></div>
+  <div class="vignette"></div>
+  <a class="brand" href="#">Papa's Deluxe <span>· port by xqnder</span></a>
+  <nav class="nav">
+    <button id="nav-log" onclick="$('changelog').scrollIntoView({behavior:'smooth'})">Changelog</button>
+    <a href="https://papas.xqnder.xyz" style="background:#fff;color:#000;border-color:#fff;font-weight:700">Mods ↗</a>
+  </nav>
+  <div class="home-inner">
+    <h1><small>Play in your browser</small>Choose a game</h1>
+    <div class="cards" id="cards"></div>
+    <button class="scroll-hint" onclick="$('changelog').scrollIntoView({behavior:'smooth'})">What's new ↓</button>
+  </div>
+  <section class="section">
+    <div class="promo">
+      <div>
+        <h2><small>Also by xqnder</small>Own it on Steam? Mod it.</h2>
+        <p>Extra Toppings is a free mod loader for Papa's Pizzeria Deluxe. More customers, bigger paychecks, longer days. One line to install.</p>
+      </div>
+      <a class="play" href="https://papas.xqnder.xyz">Get Extra Toppings ↗</a>
+    </div>
+  </section>
+  <section class="section" id="changelog">
+    <h2><small>Updates</small>Changelog</h2>
+    <div id="releases"></div>
+  </section>
+  <p class="foot">Fan-made web port. Papa's games and all art © <a href="https://www.flipline.com" target="_blank" rel="noopener">Flipline Studios</a>. Support them by buying the games on Steam.</p>
+</section>
+
+<section id="detail" class="view">
+  <div class="poster" id="d-poster"></div>
+  <video id="d-video" muted playsinline loop></video>
+  <div class="shade"></div>
+  <a class="brand" href="#">Papa's Deluxe <span>· port by xqnder</span></a>
+  <button class="back" onclick="location.hash=''">← All games</button>
+  <div class="info">
+    <img class="logo" id="d-logo" alt="">
+    <div class="notice">Best on desktop. Phones and tablets may run slowly.</div>
+    <div class="tags" id="d-tags"></div>
+    <div class="actions">
+      <button class="play" id="d-play"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l15 8-15 8z"/></svg>Play</button>
+      <button class="circle" id="d-mute" title="Unmute trailer" aria-label="Unmute trailer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4z"/><path id="d-mute-x" d="M23 9l-6 6M17 9l6 6"/></svg></button>
+      <span id="d-saves">
+        <button class="circle" id="save-export" title="Download save backup" aria-label="Download save backup"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
+        <button class="circle" id="save-import" title="Restore save from backup" aria-label="Restore save from backup"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9M7 14l5-5 5 5M4 3h16"/></svg></button>
+        <input type="file" id="save-file" accept=".json,application/json" hidden>
+      </span>
+    </div>
+    <div class="meta" id="d-meta"></div>
+    <div class="credit-line">Developer: <b>Flipline Studios</b> · Web port: <b>xqnder</b> · <a class="buy" id="d-buy" target="_blank" rel="noopener">Buy on Steam ↗</a> · <a class="buy" href="https://papas.xqnder.xyz">Mod it ↗</a></div>
+    <p class="desc" id="d-desc"></p>
+  </div>
+  <div class="panel" id="d-panel"></div>
+</section>
+
+<div id="toast" role="status"></div>
+
+<section id="play" class="view">
+  <div id="stage"></div>
+  <div id="credit">Port by xqnder <span id="credit-v"></span></div>
+  <div class="hud">
+    <button onclick="location.hash = current ? 'game/' + current.id : ''">Exit</button>
+    <button id="btn-fs">Fullscreen</button>
+  </div>
+  <div id="loader">
+    <img id="l-logo" alt="">
+    <div class="bar"><i id="progress"></i></div>
+    <p id="status">Loading player...</p>
+  </div>
+</section>
+
+<script>
+const CDN = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/";
+const VID = "https://video.akamai.steamstatic.com/store_trailers/";
+const GAMES = [
+  {
+    id: "freezeria", steam: 2291760, name: "Papa's Freezeria Deluxe", year: 2023, released: "Mar 31, 2023", glow: "rgba(96,200,255,.35)",
+    capsule: CDN + "2291760/library_600x900_2x.jpg",
+    logo: CDN + "2291760/logo_2x.png",
+    poster: CDN + "2291760/ss_0dea2f637568c519c2e4dac588230a077969161c.1920x1080.jpg",
+    trailer: VID + "2291760/537994/ea9559e043c443c78f3d59dca37e6b98c213b492/1750810988/hls_264_master.m3u8",
+    desc: "Return to Calypso Island to serve seasonal sundae treats. Craft sundaes for quirky customers while earning tips, points and Special Recipes, then take the Food Truck out for your own chilly creations.",
+  },
+  {
+    id: "pizzeria", steam: 3259470, name: "Papa's Pizzeria Deluxe", year: 2024, released: "Nov 19, 2024", glow: "rgba(255,90,60,.4)", playable: true, size: "29 MB", file: "Main.assets", parts: 2,
+    capsule: CDN + "3259470/603c90a3ea7759e335b8da044dd81af92aa5471c/library_600x900_2x.jpg",
+    logo: CDN + "3259470/9e3fc1cd4f10b078be0191a5b11c825a5e2cd2ed/logo_2x.png",
+    poster: CDN + "3259470/ss_e05cbcf3799998f694887ae54924786a461ca1ee.1920x1080.jpg",
+    trailer: VID + "3259470/769959/b50736a44d58b2090a0fdeb1ad1d3bb92c05cbec/1750825218/hls_264_master.m3u8",
+    desc: "Top, bake, and serve delicious pizzas for Papa Louie's loyal customers while earning tips, points, and Special Recipes. Unlock holiday ingredients for seasonal pies, and take the Food Truck out to serve your own creations.",
+  },
+  {
+    id: "mocharia", steam: 4656700, name: "Papa's Mocharia Deluxe", year: 2026, released: "Jun 2, 2026", glow: "rgba(210,150,90,.4)",
+    capsule: CDN + "4656700/6c8e82d8e783336db57e2553a1df1b93ac46b8b7/library_capsule_2x.jpg",
+    logo: CDN + "4656700/5b36da20189afc633b9edd41f592aab325e06b47/logo_2x.png",
+    poster: CDN + "4656700/8a7d7412daa2f605ab6d2ca18ae4695d9a00ecc1/ss_8a7d7412daa2f605ab6d2ca18ae4695d9a00ecc1.1920x1080.jpg",
+    trailer: VID + "4656700/822599862/b30be8a445ae9db65d93486ac4e92e30d154dc86/1776970876/hls_264_master.m3u8",
+    desc: "Create delicious coffee drinks and cannoli. Build stylish layered lattes for Papa Louie's loyal customers while earning tips, points, and Special Recipes, then design your own creations in the Food Truck.",
+  },
+];
+const $ = id => document.getElementById(id);
+const byId = id => GAMES.find(g => g.id === id);
+
+const homeBg = $("home-bg");
+homeBg.style.backgroundImage = `url(${GAMES[1].poster})`;
+for (const g of GAMES) {
+  const a = document.createElement("a");
+  a.className = "card" + (g.playable ? "" : " soon");
+  a.href = "#game/" + g.id;
+  a.style.backgroundImage = `url(${g.capsule})`;
+  a.style.setProperty("--glow", g.glow);
+  a.setAttribute("aria-label", g.name);
+  a.innerHTML = `<span class="badge ${g.playable ? "live" : ""}">${g.playable ? "Playable" : "Coming soon"}</span>`;
+  for (const ev of ["mouseenter", "focus"]) a.addEventListener(ev, () => homeBg.style.backgroundImage = `url(${g.poster})`);
+  a.addEventListener("mousemove", e => {
+    const r = a.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    a.style.transform = `rotateY(${(x - .5) * 14}deg) rotateX(${(.5 - y) * 14}deg) translateY(-8px) scale(1.04)`;
+    a.style.setProperty("--shine", (100 - x * 100) + "%");
+  });
+  a.addEventListener("mouseleave", () => a.style.transform = "");
+  $("cards").appendChild(a);
+}
+
+const video = $("d-video");
+let hls;
+function loadScript(src) {
+  return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
+}
+async function playTrailer(url) {
+  video.classList.remove("ready");
+  if (hls) { hls.destroy(); hls = null; }
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = url;
+    video.addEventListener("loadedmetadata", () => video.currentTime = 8, { once: true });
+  } else {
+    if (!window.Hls) await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js").catch(() => {});
+    if (!window.Hls || !Hls.isSupported()) return;
+    hls = new Hls({ capLevelToPlayerSize: true, maxMaxBufferLength: 20, startPosition: 8 });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  }
+  video.play().catch(() => {});
+}
+video.addEventListener("playing", () => video.classList.add("ready"));
+function stopTrailer() {
+  video.pause();
+  if (hls) { hls.destroy(); hls = null; }
+  video.removeAttribute("src"); video.load();
+}
+$("d-mute").onclick = () => {
+  video.muted = !video.muted;
+  $("d-mute-x").style.display = video.muted ? "" : "none";
+};
+function showDetail(g) {
+  $("d-poster").style.backgroundImage = `url(${g.poster})`;
+  $("d-logo").src = g.logo; $("d-logo").alt = g.name;
+  $("d-tags").innerHTML = ["Restaurant", "Time Management", "Casual"].join("<i>•</i>");
+  $("d-meta").innerHTML = `<span>${g.year}</span><span class="pill">Deluxe</span><span>${g.playable ? "Runs in browser" : "Not ported yet"}</span>${g.size ? `<span>${g.size}</span>` : ""}`;
+  $("d-desc").textContent = g.desc;
+  renderPanel(g);
+  $("d-saves").hidden = !g.playable;
+  $("d-buy").href = "https://store.steampowered.com/app/" + g.steam + "/";
+  if (g.playable) download(g);
+  const play = $("d-play");
+  play.disabled = !g.playable;
+  play.lastChild.textContent = g.playable ? "Play" : "Coming soon";
+  play.onclick = () => location.hash = "play/" + g.id;
+  video.muted = true; $("d-mute-x").style.display = "";
+  playTrailer(g.trailer);
+}
+
+let player, current;
+const setProgress = (pct, msg) => { $("progress").style.width = pct + "%"; if (msg) $("status").textContent = msg; };
+const MB = n => (n / 1048576).toFixed(1);
+const downloads = {};
+let onProgress = () => {};
+const partUrls = g => g.parts ? Array.from({ length: g.parts }, (_, i) => `${g.file}.part${i}`) : [g.file];
+const partSize = async url => {
+  try {
+    const res = await fetch(url, { method: "HEAD" });
+    return res.ok ? +res.headers.get("content-length") || 0 : 0;
+  } catch {
+    return 0;
+  }
+};
+function download(g) {
+  if (!window.RufflePlayer) loadScript("ruffle/ruffle.js").catch(() => {});
+  return downloads[g.id] ??= (async () => {
+    const urls = partUrls(g);
+    const total = (await Promise.all(urls.map(partSize))).reduce((a, b) => a + b, 0);
+    const chunks = [];
+    let got = 0;
+    for (const url of urls) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        got += value.length;
+        onProgress(got, total);
+      }
+    }
+    return URL.createObjectURL(new Blob(chunks, { type: "application/x-shockwave-flash" }));
+  })().catch(e => { delete downloads[g.id]; throw e; });
+}
+async function startGame(g) {
+  current = g;
+  $("l-logo").src = g.logo;
+  if (player) return;
+  setProgress(0, "Downloading game...");
+  onProgress = (got, total) => total
+    ? setProgress(got / total * 90, `Downloading game... ${MB(got)} / ${MB(total)} MB`)
+    : setProgress(45, `Downloading game... ${MB(got)} MB`);
+  try {
+    const url = await download(g);
+    setProgress(92, "Starting engine...");
+    if (!window.RufflePlayer?.newest) await loadScript("ruffle/ruffle.js");
+    if (current !== g || player) return;
+    player = window.RufflePlayer.newest().createPlayer();
+    $("stage").appendChild(player);
+    const credit = $("credit");
+    credit.classList.remove("gone");
+    player.addEventListener("pointerdown", () => setTimeout(() => credit.classList.add("gone"), 400), { once: true });
+    setProgress(96, "Starting game...");
+    await player.load({ url, base: new URL(".", location.href).href, autoplay: "on", maxExecutionDuration: 30, logLevel: "error", letterbox: "on", unmuteOverlay: "visible", splashScreen: false });
+    setProgress(100, "Ready");
+    setTimeout(() => $("loader").classList.add("hidden"), 300);
+    player.focus();
+  } catch (e) {
+    setProgress(0, "Failed to load: " + e.message + ". Refresh to retry");
+  } finally {
+    onProgress = () => {};
+  }
+}
+function stopGame() {
+  current = null;
+  if (document.fullscreenElement) document.exitFullscreen();
+  if (!player) return;
+  player.remove(); player = null;
+  $("loader").classList.remove("hidden");
+}
+$("btn-fs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : $("play").requestFullscreen();
+const viewOn = id => $(id).classList.contains("on");
+function moveCard(dir) {
+  const cards = [...$("cards").children];
+  const i = cards.indexOf(document.activeElement);
+  cards[i < 0 ? 1 : (i + dir + cards.length) % cards.length].focus();
+}
+function back() { if (viewOn("detail")) location.hash = ""; }
+document.addEventListener("keydown", e => {
+  if (viewOn("play")) return;
+  if (viewOn("home") && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); moveCard(e.key === "ArrowRight" ? 1 : -1); }
+  if (viewOn("detail") && (e.key === "Escape" || e.key === "Backspace")) back();
+});
+const padPrev = {};
+function pollPads() {
+  for (const pad of navigator.getGamepads()) {
+    if (!pad) continue;
+    const prev = padPrev[pad.index] || {};
+    const now = {
+      a: pad.buttons[0]?.pressed, b: pad.buttons[1]?.pressed,
+      l: pad.buttons[14]?.pressed || pad.axes[0] < -.6, r: pad.buttons[15]?.pressed || pad.axes[0] > .6,
+    };
+    const hit = k => now[k] && !prev[k];
+    if (viewOn("home")) {
+      if (hit("l")) moveCard(-1);
+      if (hit("r")) moveCard(1);
+      if (hit("a") && document.activeElement.classList.contains("card")) document.activeElement.click();
+    } else if (viewOn("detail")) {
+      if (hit("a") && !$("d-play").disabled) $("d-play").click();
+      if (hit("b")) back();
+    }
+    padPrev[pad.index] = now;
+  }
+  requestAnimationFrame(pollPads);
+}
+window.addEventListener("gamepadconnected", () => { if (!pollPads.on) { pollPads.on = true; pollPads(); } });
+
+const CHANGELOG = [
+  { v: "1.5", date: "Nov 22, 2026", title: "Mods", items: [
+    "Links to Extra Toppings, the mod loader for the Steam version",
+  ] },
+  { v: "1.4", date: "Nov 22, 2026", title: "Saves, bugs and stats", items: [
+    "Save backup: download your save and restore it later from the game page",
+    "Report bug button while playing",
+    "Ratings and play counts on the game cards and game pages",
+    "Replies from xqnder under reviews",
+    "Red dot on Changelog when there's something new",
+    ["fix", "Reviews with links or bad words wait for approval before showing"],
+  ] },
+  { v: "1.3", date: "Nov 22, 2026", title: "Reviews and changelog", items: [
+    "Reviews page: rate the port, report bugs, suggest what's next",
+    "This changelog",
+  ] },
+  { v: "1.2", date: "Nov 22, 2026", title: "Quality of life", items: [
+    "Real loading bar that shows MB downloaded",
+    "The game starts downloading when you open its page, so Play is almost instant",
+    "Exit takes you back to the game's page",
+    "Keyboard controls: arrows pick a game, Enter opens, Esc goes back",
+    "Controller support on the menus: d-pad picks, A plays, B goes back",
+    "Smooth fades between pages",
+    "Link previews when you share the site",
+    "\"Best on desktop\" note on phones",
+    "Credits for Flipline Studios and Buy on Steam links",
+    ["del", "Fake loading bar"],
+  ] },
+  { v: "1.1", date: "Nov 22, 2026", title: "New look", items: [
+    "Game picker with Freezeria, Pizzeria and Mocharia Deluxe",
+    "Game pages with a looping trailer in the background",
+    "Real fullscreen: the game fills your screen",
+    "\"Port by xqnder\" on Pizzeria's title screen",
+    ["fix", "Freezeria and Mocharia marked as coming soon"],
+    ["del", "The little 4:3 box around the game"],
+  ] },
+  { v: "1.0", date: "Nov 21, 2026", title: "Launch", items: [
+    "Papa's Pizzeria Deluxe playable in the browser",
+    "Saves stored in your browser",
+  ] },
+];
+$("credit-v").textContent = "· v" + CHANGELOG[0].v;
+for (const r of CHANGELOG) {
+  const el = document.createElement("div");
+  el.className = "release";
+  el.innerHTML = `<h3>v${r.v} · ${r.title} <span>${r.date}</span></h3><ul></ul>`;
+  for (const it of r.items) {
+    const li = document.createElement("li");
+    const [kind, text] = Array.isArray(it) ? it : ["", it];
+    li.className = kind;
+    li.textContent = text;
+    el.querySelector("ul").appendChild(li);
+  }
+  $("releases").appendChild(el);
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("on"), 2800);
+}
+
+let detailGame;
+function renderPanel(g) {
+  detailGame = g;
+  const rows = [["Status", g.playable ? "Playable" : "Coming soon"], ["Release Date", g.released], ["Engine", "Ruffle (WASM)"], ["Saves", g.playable ? "In your browser" : "—"]];
+  $("d-panel").innerHTML = rows.map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join("");
+}
+
+const SEEN = "xq:seen-version";
+if (localStorage.getItem(SEEN) !== CHANGELOG[0].v) {
+  $("nav-log").classList.add("dot");
+  const seen = new IntersectionObserver(([e]) => {
+    if (!e.isIntersecting) return;
+    localStorage.setItem(SEEN, CHANGELOG[0].v);
+    $("nav-log").classList.remove("dot");
+    seen.disconnect();
+  }, { threshold: .2 });
+  seen.observe($("changelog"));
+}
+
+const saveEntries = () => Object.entries(localStorage).filter(([k]) => !k.startsWith("xq:"));
+$("save-export").onclick = () => {
+  const entries = saveEntries();
+  if (!entries.length) return toast("No save found yet. Play first!");
+  const file = { format: "papas-port-save", version: 1, game: detailGame?.id, exported: new Date().toISOString(), data: Object.fromEntries(entries) };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: "application/json" }));
+  a.download = `papas-${detailGame?.id || "save"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Save backup downloaded");
+};
+$("save-import").onclick = () => $("save-file").click();
+$("save-file").onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  let file;
+  try { file = JSON.parse(await f.text()); } catch { return toast("That file isn't a save backup"); }
+  if (file?.format !== "papas-port-save" || typeof file.data !== "object" || !file.data) return toast("That file isn't a save backup");
+  if (saveEntries().length && !confirm("Replace your current save with this backup? Your current progress will be lost.")) return;
+  for (const [k] of saveEntries()) localStorage.removeItem(k);
+  for (const [k, v] of Object.entries(file.data)) if (typeof v === "string" && !k.startsWith("xq:")) localStorage.setItem(k, v);
+  toast("Save restored!");
+};
+
+function route() {
+  const hash = location.hash.slice(1);
+  const [view, id] = hash.split("/");
+  const g = byId(id) || (hash ? null : GAMES.find(x => x.playable));
+  const target = view === "game" && g ? "detail" : (view === "play" || !hash) && g?.playable ? "play" : "home";
+  for (const v of document.querySelectorAll(".view")) v.classList.toggle("on", v.id === target);
+  if (target !== "detail") stopTrailer();
+  if (target !== "play") stopGame();
+  if (target === "detail") showDetail(g);
+  if (target === "play") startGame(g);
+  document.title = g && target !== "home" ? `${g.name} | Port by xqnder` : "Papa's Deluxe | Port by xqnder";
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
