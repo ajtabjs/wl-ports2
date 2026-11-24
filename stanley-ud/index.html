@@ -37,6 +37,7 @@ body{display:flex;align-items:center;justify-content:center}
 const stanleyAssets = {"StreamingAssets/scenes/memoryzonepartone_ud_master":[397032370,"application/octet-stream",["./chunks/memoryzonepartone-000","./chunks/memoryzonepartone-001","./chunks/memoryzonepartone-002","./chunks/memoryzonepartone-003","./chunks/memoryzonepartone-004","./chunks/memoryzonepartone-005","./chunks/memoryzonepartone-006","./chunks/memoryzonepartone-007","./chunks/memoryzonepartone-008","./chunks/memoryzonepartone-009","./chunks/memoryzonepartone-010","./chunks/memoryzonepartone-011","./chunks/memoryzonepartone-012","./chunks/memoryzonepartone-013","./chunks/memoryzonepartone-014","./chunks/memoryzonepartone-015","./chunks/memoryzonepartone-016","./chunks/memoryzonepartone-017","./chunks/memoryzonepartone-018","./chunks/memoryzonepartone-019","./chunks/memoryzonepartone-020","./chunks/memoryzonepartone-021","./chunks/memoryzonepartone-022","./chunks/memoryzonepartone-023","./chunks/memoryzonepartone-024"]],"StreamingAssets/scenes/memoryzoneparttwo_ud_master":[354634675,"application/octet-stream",["./chunks/memoryzoneparttwo-000","./chunks/memoryzoneparttwo-001","./chunks/memoryzoneparttwo-002","./chunks/memoryzoneparttwo-003","./chunks/memoryzoneparttwo-004","./chunks/memoryzoneparttwo-005","./chunks/memoryzoneparttwo-006","./chunks/memoryzoneparttwo-007","./chunks/memoryzoneparttwo-008","./chunks/memoryzoneparttwo-009","./chunks/memoryzoneparttwo-010","./chunks/memoryzoneparttwo-011","./chunks/memoryzoneparttwo-012","./chunks/memoryzoneparttwo-013","./chunks/memoryzoneparttwo-014","./chunks/memoryzoneparttwo-015","./chunks/memoryzoneparttwo-016","./chunks/memoryzoneparttwo-017","./chunks/memoryzoneparttwo-018","./chunks/memoryzoneparttwo-019","./chunks/memoryzoneparttwo-020","./chunks/memoryzoneparttwo-021","./chunks/memoryzoneparttwo-022"]],"StreamingAssets/scenes/memoryzonepartthree_ud_master":[244552655,"application/octet-stream",["./chunks/memoryzonepartthree-000","./chunks/memoryzonepartthree-001","./chunks/memoryzonepartthree-002","./chunks/memoryzonepartthree-003","./chunks/memoryzonepartthree-004","./chunks/memoryzonepartthree-005","./chunks/memoryzonepartthree-006","./chunks/memoryzonepartthree-007","./chunks/memoryzonepartthree-008","./chunks/memoryzonepartthree-009","./chunks/memoryzonepartthree-010","./chunks/memoryzonepartthree-011","./chunks/memoryzonepartthree-012","./chunks/memoryzonepartthree-013","./chunks/memoryzonepartthree-014","./chunks/memoryzonepartthree-015"]],"StreamingAssets/scenes/apartment_ending_ud_master":[167646471,"application/octet-stream",["./chunks/apartment-ending-000","./chunks/apartment-ending-001","./chunks/apartment-ending-002","./chunks/apartment-ending-003","./chunks/apartment-ending-004","./chunks/apartment-ending-005","./chunks/apartment-ending-006","./chunks/apartment-ending-007","./chunks/apartment-ending-008","./chunks/apartment-ending-009","./chunks/apartment-ending-010"]],"StreamingAssets/scenes/map1_ud_master":[289389155,"application/octet-stream",["./chunks/map1-000","./chunks/map1-001","./chunks/map1-002","./chunks/map1-003","./chunks/map1-004","./chunks/map1-005","./chunks/map1-006","./chunks/map1-007","./chunks/map1-008","./chunks/map1-009","./chunks/map1-010","./chunks/map1-011","./chunks/map1-012","./chunks/map1-013","./chunks/map1-014","./chunks/map1-015","./chunks/map1-016","./chunks/map1-017","./chunks/map1-018"]],"StreamingAssets/scenes/map2_ud_master":[124710885,"application/octet-stream",["./chunks/map2-000","./chunks/map2-001","./chunks/map2-002","./chunks/map2-003","./chunks/map2-004","./chunks/map2-005","./chunks/map2-006","./chunks/map2-007"]],"StreamingAssets/scenes/map_one_ud_master":[90536719,"application/octet-stream",["./chunks/map-one-000","./chunks/map-one-001","./chunks/map-one-002","./chunks/map-one-003","./chunks/map-one-004","./chunks/map-one-005"]],"StreamingAssets/scenes/map_two_ud_master":[81747114,"application/octet-stream",["./chunks/map-two-000","./chunks/map-two-001","./chunks/map-two-002","./chunks/map-two-003","./chunks/map-two-004","./chunks/map-two-005"]],"StreamingAssets/scenes/eight_ud_master":[36056999,"application/octet-stream",["./chunks/eight-000","./chunks/eight-001","./chunks/eight-002"]],"StreamingAssets/scenes/zending_ud_master":[54317089,"application/octet-stream",["./chunks/zending-000","./chunks/zending-001","./chunks/zending-002","./chunks/zending-003"]],"StreamingAssets/voice.default":[190940367,"application/octet-stream",["./chunks/voice-default-000","./chunks/voice-default-001","./chunks/voice-default-002","./chunks/voice-default-003","./chunks/voice-default-004","./chunks/voice-default-005","./chunks/voice-default-006","./chunks/voice-default-007","./chunks/voice-default-008","./chunks/voice-default-009","./chunks/voice-default-010","./chunks/voice-default-011"]]};
 const stanleyNativeFetch = window.fetch.bind(window);
 const stanleyAssetBase = new URL('./', document.baseURI).href;
+const stanleyAssetBasePath = new URL(stanleyAssetBase).pathname;
 const stanleyAssetCacheName = 'stanley-assets-v1';
 let stanleyAssetCachePromise;
 function stanleyAssetCache() {
@@ -59,10 +60,43 @@ async function stanleyChunkResponse(url, options) {
     return stanleyNativeFetch(url, options);
 }
 function stanleyAssetEntry(url) {
-    const absolute = new URL(url, document.baseURI).href;
-    return absolute.startsWith(stanleyAssetBase)
-        ? stanleyAssets[decodeURIComponent(absolute.slice(stanleyAssetBase.length))]
-        : undefined;
+    let absolute;
+    try {
+        absolute = new URL(url, document.baseURI);
+    } catch (error) {
+        return undefined;
+    }
+    absolute.hash = '';
+    absolute.search = '';
+
+    let path;
+    try {
+        path = decodeURIComponent(absolute.pathname);
+    } catch (error) {
+        path = absolute.pathname;
+    }
+    path = path.replace(/\/{2,}/g, '/');
+
+    const relative = path.startsWith(stanleyAssetBasePath)
+        ? path.slice(stanleyAssetBasePath.length)
+        : path;
+    if (stanleyAssets[relative]) return stanleyAssets[relative];
+
+    let suffixMatch;
+    Object.keys(stanleyAssets).forEach(key => {
+        if (path.endsWith('/' + key) && (!suffixMatch || key.length > suffixMatch.length)) {
+            suffixMatch = key;
+        }
+    });
+    if (suffixMatch) return stanleyAssets[suffixMatch];
+
+    const name = path.slice(path.lastIndexOf('/') + 1);
+    const byName = Object.keys(stanleyAssets).filter(key => key.slice(key.lastIndexOf('/') + 1) === name);
+    if (byName.length === 1) return stanleyAssets[byName[0]];
+    if (/(^|\/)StreamingAssets\//.test(path)) {
+        console.warn('StreamingAssets request does not match the split config:', absolute.href);
+    }
+    return undefined;
 }
 window.fetch = async function (input, options) {
     const url = input instanceof Request ? input.url : input;
