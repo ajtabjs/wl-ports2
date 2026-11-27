@@ -428,6 +428,14 @@
     const totalParts = wasmParts.length + dataParts.length;
     let doneParts = 0;
     let finished = false;
+    const cacheName = 'isaac-split-ccce2b596d';
+    const cacheAvailable = typeof caches !== 'undefined';
+    if (cacheAvailable) {
+      caches.keys().then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith('isaac-split-') && key !== cacheName)
+            .map((key) => caches.delete(key)))).catch(() => {});
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    }
     const progress = document.createElement('div');
     progress.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;'
       + 'z-index:15;font:12px ui-monospace,Menlo,Consolas,monospace;color:#ccc;text-align:center';
@@ -449,7 +457,26 @@
       if (!finished) status.textContent = text;
     }
 
-    async function merged(parts, mime) {
+    async function merged(name, parts, mime) {
+      const cacheKey = new URL(`__isaac_split_cache__/${name}`, document.baseURI).href;
+      let cache = null;
+      if (cacheAvailable) {
+        try {
+          cache = await caches.open(cacheName);
+          if (!override) {
+            const hit = await cache.match(cacheKey);
+            if (hit) {
+              const blob = await hit.blob();
+              doneParts += parts.length;
+              showProgress();
+              return URL.createObjectURL(blob);
+            }
+          }
+        } catch (error) {
+          console.warn('isaac: cache lookup failed, downloading parts:', error);
+          cache = null;
+        }
+      }
       const buffers = [];
       for (const part of parts) {
         const response = await fetch(new URL(part, document.baseURI).href + q);
@@ -458,14 +485,19 @@
         doneParts++;
         showProgress();
       }
-      return URL.createObjectURL(new Blob(buffers, { type: mime }));
+      const blob = new Blob(buffers, { type: mime });
+      if (cache) {
+        cache.put(cacheKey, new Response(blob, { headers: { 'Content-Type': mime, 'Content-Length': String(blob.size) } }))
+          .catch((error) => console.warn('isaac: could not cache', name, error));
+      }
+      return URL.createObjectURL(blob);
     }
 
     showProgress();
     (async () => {
       const urls = {
-        'isaac.wasm': await merged(wasmParts, 'application/wasm'),
-        'isaac.data': await merged(dataParts, 'application/octet-stream'),
+        'isaac.wasm': await merged('isaac.wasm', wasmParts, 'application/wasm'),
+        'isaac.data': await merged('isaac.data', dataParts, 'application/octet-stream'),
       };
       Module.locateFile = (path, prefix) => urls[path] || (prefix || '') + path + q;
       finished = true;
