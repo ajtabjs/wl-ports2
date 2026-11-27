@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Binding of Isaac: Rebirth (YASR)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #canvas { display: block; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); outline: none; }
+  #status { position: fixed; left: 10px; top: 8px; color: #bbb; font: 14px system-ui, sans-serif; pointer-events: none; }
+  #hud { position: fixed; right: 8px; top: 8px; display: flex; gap: 6px; align-items: center; z-index: 10; }
+  #fps { color: #8f8; background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 4px;
+         font: 600 13px ui-monospace, Menlo, Consolas, monospace; pointer-events: none; min-width: 52px; text-align: right; }
+  #mem { color: #ccc; background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 4px;
+         font: 12px ui-monospace, Menlo, Consolas, monospace; pointer-events: none; }
+  #mem:empty { display: none; }
+  #fs { color: #ddd; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); border-radius: 4px;
+        font: 13px system-ui, sans-serif; padding: 2px 8px; cursor: pointer; }
+  #fs:hover { background: rgba(60,60,60,.8); }
+  .tog { color: #999; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.2); border-radius: 4px;
+         font: 12px ui-monospace, Menlo, Consolas, monospace; padding: 2px 7px; cursor: pointer; }
+  .tog.on { color: #8f8; border-color: rgba(120,255,120,.5); }
+  #hud.hide-fps #fps { display: none; }
+  #hud.hide-mem #mem { display: none; }
+  #crash { display: none; position: fixed; inset: 10% 8%; z-index: 20; background: rgba(20,0,0,.92); color: #fdd;
+           border: 1px solid #a44; border-radius: 6px; padding: 12px 14px; font: 13px system-ui, sans-serif; flex-direction: column; gap: 8px; }
+  #crash pre { flex: 1; overflow: auto; margin: 0; background: rgba(0,0,0,.5); padding: 8px; font: 12px ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  #crash button { align-self: flex-start; color: #fff; background: #733; border: 1px solid #c66; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+  #ended { display: none; position: fixed; inset: 0; z-index: 30; background: rgba(8,6,14,.88); color: #eee;
+           font: 14px system-ui, sans-serif; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  #ended b { font-size: 20px; }
+  #ended p { margin: 0; max-width: 520px; text-align: center; color: #bbb; }
+  #ended .row { display: flex; gap: 10px; }
+  #ended button { color: #fff; background: #475; border: 1px solid #8b9; border-radius: 4px;
+                  padding: 7px 16px; font: 14px system-ui, sans-serif; cursor: pointer; }
+  #ended button:hover { filter: brightness(1.15); }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0" width="960" height="540"></canvas>
+<div id="status">Loading…</div>
+<div id="hud"><button id="tfps" class="tog" type="button" title="Show or hide the fps counter">fps</button><button id="tmem" class="tog" type="button" title="Show or hide the memory/debug readout">mem</button><span id="mem" title="wasm heap / limit (malloc in use), live guest threads"></span><span id="fps">-- fps</span><button id="tsmooth" class="tog" type="button" title="Upscale the sprites with linear filtering (soft edges) instead of the game's hard pixel edges">upscale</button><button id="tfill" class="tog" type="button" title="Stretch the picture over the whole window (removes the black bars)">fill</button><button id="fs" type="button" title="Toggle fullscreen">⛶ Fullscreen</button></div>
+<div id="crash"><b id="crashtitle">The game stopped. Please copy this text into the bug report.</b><pre id="crashlog"></pre><button id="crashcopy" type="button">Copy to clipboard</button></div>
+<div id="ended"><b>The game exited.</b><p id="endedtext"></p><div class="row"><button id="again" type="button">Start again</button></div></div>
+<script>
+  const canvas = document.getElementById('canvas');
+  const status = document.getElementById('status');
+  // The guest renders a fixed 16:9 frame (Isaac's window is 960x540 and it ignores resize requests),
+  // so a browser window of any other shape gets black letterbox bars that cut the picture off at
+  // the window edge. "fill" stretches the frame over the whole window instead: no bars, at the cost
+  // of a slightly non-square picture when the window is not 16:9. On by default (a 16:9 window is
+  // unaffected) and kept in localStorage; the HUD button switches back to the exact fit.
+  let fillMode = true;
+  try { const v = localStorage.getItem('yasr.fill'); if (v !== null) fillMode = v === '1'; } catch (e) { /* storage disabled */ }
+  const fillParam = new URLSearchParams(location.search).get('fill');
+  if (fillParam !== null) fillMode = fillParam !== '0';
+  // The canvas keeps its guest size in CSS and is scaled with a transform. Sizing it with
+  // width/height made the guest read the page size as its window size (Emscripten's GLFW
+  // reports the CSS size): Isaac then switched the cutscene to a 1278x720 surface while its
+  // UI still laid out for 960x540, which zoomed the intro and cut off its edges. A transform
+  // leaves getComputedStyle() at 960x540, so the game keeps its own window size.
+  function fit() {
+    const w = canvas.getAttribute('width') | 0 || 960, h = canvas.getAttribute('height') | 0 || 540;
+    const sx = innerWidth / w;
+    const sy = fillMode ? innerHeight / h : Math.min(sx, innerHeight / h);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.style.transform = 'translate(-50%, -50%) scale(' + sx + ', ' + sy + ')';
+  }
+  const fillBtn = document.getElementById('tfill');
+  function applyFill() {
+    if (fillBtn) fillBtn.classList.toggle('on', fillMode);
+    fit();
+  }
+  if (fillBtn) fillBtn.addEventListener('click', () => {
+    fillMode = !fillMode;
+    try { localStorage.setItem('yasr.fill', fillMode ? '1' : '0'); } catch (e) { /* storage disabled */ }
+    applyFill();
+  });
+  addEventListener('resize', fit);
+  setInterval(fit, 500);
+  applyFill();
+  // JSPI is what lets the guest's blocking calls (sleep, wait, file reads) suspend the wasm stack
+  // instead of spinning. Chrome/Edge 137+ and Firefox 153+ ship it; Firefox 139-152 (including the
+  // 140 ESR line, tested) has it behind javascript.options.wasm_js_promise_integration, and Safari 27
+  // is the first Safari with it. Without it the module cannot even link (WebAssembly.Suspending is
+  // missing from the glue), so say so instead of leaving a black page behind an invisible status line.
+  if (!('Suspending' in WebAssembly) || !('promising' in WebAssembly)) {
+    const ff = /Firefox\/(\d+)/.exec(navigator.userAgent);
+    const why = ff && +ff[1] < 153
+      ? `This build needs WebAssembly JSPI, which Firefox ${ff[1]} has behind a flag. Open `
+        + '<b>about:config</b>, set <b>javascript.options.wasm_js_promise_integration</b> to ' +
+        '<b>true</b>, then reload this page — Firefox 140 ESR runs the build that way; 153+ has it ' +
+        'switched on already.'
+      : 'This build needs WebAssembly JSPI: Chrome/Edge 137+, Firefox 153+ (or 139+ with ' +
+        'javascript.options.wasm_js_promise_integration), Safari 27+.';
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
+      'padding:8% ;color:#eed;background:#120a0a;font:15px/1.5 system-ui,sans-serif;text-align:center;z-index:40';
+    box.innerHTML = '<div style="max-width:560px"><b style="font-size:19px">This browser cannot run the build</b><p>' + why + '</p>'
+      + '<button type="button" id="jspireload" style="color:#fff;background:#475;border:1px solid #8b9;'
+      + 'border-radius:4px;padding:7px 16px;font:14px system-ui,sans-serif;cursor:pointer">Reload</button>';
+    box.querySelector('#jspireload').addEventListener('click', () => location.reload());
+    status.textContent = '';
+    document.body.appendChild(box);
+    window.jspiMissing = true;
+  }
+  // Crash overlay: keep the last runtime log lines so an abort (unimplemented instruction,
+  // unresolved branch target, guest exception) can be copied into a bug report.
+  const logTail = [];
+  function logLine(t) { logTail.push(String(t)); if (logTail.length > 60) logTail.shift(); }
+  // The game prints some warnings ~20 times a second ("Index did not map to an existing sound
+  // instance"). Every console message is kept by the renderer (and by DevTools when it is open), so
+  // show the first few copies of each line, then only a periodic "suppressed N repeats" summary.
+  const isaacSeen = new Map();
+  function isaacOut(t, sink) {
+    t = String(t);
+    const now = performance.now();
+    let s = isaacSeen.get(t);
+    if (!s) {
+      if (isaacSeen.size > 512) isaacSeen.clear();
+      isaacSeen.set(t, s = { n: 0, hidden: 0, last: now });
+    }
+    if (++s.n <= 5) { logLine(t); sink(t); return; }
+    s.hidden++;
+    if (now - s.last >= 10000) {
+      const note = `(${s.hidden} more: ${t})`;
+      s.hidden = 0; s.last = now;
+      logLine(note); sink(note);
+    }
+  }
+  let crashed = false;
+  // Clean exit: the guest called ExitProcess (the game's own Quit/Exit button) or its entry
+  // point returned. Nothing crashed, so drop the crash heartbeat -- otherwise the next load
+  // reports "the previous session ended without a clean exit" -- and close the tab.
+  let exited = false;
+  const memText = (m) => m ? `heap ${m.heapMB.toFixed(0)}/${m.maxMB.toFixed(0)} MB, malloc ${m.usedMB.toFixed(0)} MB ` +
+    `(peak ${m.peakMB.toFixed(0)}), threads ${m.threads}/${m.threadsTotal}, textures ${m.tex} (${m.texMB.toFixed(0)} MB GPU, ` +
+    `${m.shadowMB.toFixed(0)} MB CPU), buffers ${m.bufs} (${m.bufMB.toFixed(0)} MB)` + (m.allocFail ? `, ${m.allocFail} failed allocations` : '') : 'n/a';
+  function report(what, presents, mem, tail, when) {
+    return 'isaac crashed: ' + what + (when ? '\nat: ' + when : '') + '\nframes presented: ' + presents +
+      '\nmemory: ' + memText(mem) + '\nuser agent: ' + navigator.userAgent + '\n\n--- last log lines ---\n' + tail.join('\n');
+  }
+  function showPanel(title, text) {
+    document.getElementById('crashtitle').textContent = title;
+    document.getElementById('crashlog').textContent = text;
+    document.getElementById('crash').style.display = 'flex';
+  }
+  // Show a friendly restart panel after a clean exit when this tab cannot be closed by script.
+  function showEnded(code) {
+    if (crashed) return;
+    document.getElementById('endedtext').textContent = 'Start a new session to play again.';
+    document.getElementById('ended').style.display = 'flex';
+  }
+  // Shown after the guest exits when the tab cannot be closed. Also used as the navigation
+  // target when the guest's teardown blocks the page (see hardExit).
+  const ENDED_URL = location.pathname + '?ended=1';
+  // A wasm and a isaac.js from different builds cannot be linked: the module's import table has to
+  // match the JS glue exactly. The usual symptom is a stale cached wasm (or a half-finished
+  // upload) against a newer JS: "LinkError: Import #N "wasi_snapshot_preview1" "proc_exit":
+  // function import requires a callable". Reload once with a cache-busting ?v=, which the loader
+  // at the end of the page turns into cache-bypassing URLs for the JS, the wasm and the data file,
+  // so the browser fetches a matching set. A second failure shows the panel as usual.
+  const RELOADED_KEY = 'isaac.reloaded';
+  function showCrash(what) {
+    if (exited) return;
+    const mismatch = /LinkError|import requires a callable|Import #/.test(String(what));
+    if (mismatch && !crashed) {
+      try {
+        if (!sessionStorage.getItem(RELOADED_KEY)) {
+          sessionStorage.setItem(RELOADED_KEY, '1');
+          const params = new URLSearchParams(location.search);
+          params.set('v', String(Date.now()));
+          crashed = true; // a reload is under way: do not also paint the crash panel
+          location.replace(location.pathname + '?' + params.toString());
+          return;
+        }
+      } catch (e) { /* storage disabled: fall through to the panel */ }
+    }
+    if (crashed) return;
+    crashed = true;
+    saveSession(false);
+    showPanel(mismatch
+      ? 'isaac.js and isaac.wasm are from different builds, so they cannot be linked. Reload with Ctrl+Shift+R (⌘⇧R); if this keeps happening, the deployed files are out of date.'
+      : 'The game stopped. Please copy this text into the bug report.',
+      report(what, (Module.yasrPresents ?? Module.isaacPresents) | 0, Module.yasrMem || Module.isaacMem, logTail));
+  }
+  // A tab-process crash (renderer out of memory: "Aw, Snap!") kills this page before it can show
+  // anything, so keep a small heartbeat in localStorage. If the previous load never reached a clean
+  // exit, show its last log lines and memory figures on this load.
+  const SESSION_KEY = 'isaac.session';
+  function saveSession(running) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ running, when: new Date().toISOString(),
+        presents: (Module.yasrPresents ?? Module.isaacPresents) | 0, mem: Module.yasrMem || Module.isaacMem || null,
+        tail: logTail.slice(-40) }));
+    } catch (e) { /* storage full or disabled */ }
+  }
+  try {
+    const prev = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (prev && prev.running && prev.presents > 0)
+      addEventListener('load', () => showPanel('The previous session ended without a clean exit (the browser tab ' +
+        'crashed, usually because it ran out of memory). Copy this text into the bug report, then click anywhere to continue.',
+        report('tab process died (no browser-side error is reported for this)', prev.presents, prev.mem, prev.tail || [], prev.when)));
+  } catch (e) { /* ignore a corrupt record */ }
+  localStorage.removeItem(SESSION_KEY);
+  addEventListener('pagehide', () => { if (!crashed) localStorage.removeItem(SESSION_KEY); });
+  document.getElementById('crash').addEventListener('click', (e) => {
+    if (!crashed && e.target.id !== 'crashcopy') document.getElementById('crash').style.display = 'none';
+  });
+  // The guest ended normally (ExitProcess/TerminateProcess or a returning entry point): no
+  // crash panel, no heartbeat, and the tab closes. Browsers only let a page close a tab that a
+  // script opened (or a PWA window), so when close() is refused, say so instead of leaving a
+  // dead canvas with no explanation.
+  function finishSession(code) {
+    if (exited || crashed) return;
+    exited = true;
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* storage disabled */ }
+    try { if (Module.winAudio && Module.winAudio.ctx) Module.winAudio.ctx.close(); } catch (e) { /* already closed */ }
+    const hud = document.getElementById('hud');
+    if (hud) hud.style.display = 'none';
+    canvas.style.cursor = 'default';
+    status.style.display = '';
+    status.textContent = `The game exited (status ${code | 0}). Saving and closing the tab…`;
+    // A successful close() unloads the page, so anything after it only runs when the browser
+    // refused (the tab was not opened by a script). The legacy "_self" form is the only other
+    // lever a page has; after that, tell the player what to do.
+    const tryClose = () => {
+      const close = () => {
+        try { window.close(); } catch (e) { /* refused */ }
+        setTimeout(() => {
+          try { window.open('', '_self'); window.close(); } catch (e) { /* refused */ }
+          setTimeout(() => {
+            status.style.display = '';
+            status.textContent = `The game exited (status ${code | 0}). This tab was not opened by a script, ` +
+              'so the browser will not let the page close it — press Ctrl+W (⌘W on macOS) to close it.';
+            showEnded(code);
+          }, 100);
+        }, 100);
+      };
+      // Leave fullscreen first; Chrome ignores close() while the document is still fullscreen.
+      if (document.fullscreenElement) document.exitFullscreen().then(close, close);
+      else close();
+    };
+    // Flush the IDBFS save mount before the tab goes away, with a fallback in case the mount
+    // is absent or syncfs never calls back.
+    try {
+      if (globalThis.FS && Module.winPersistDir) {
+        let done = false;
+        FS.syncfs(false, () => { if (done) return; done = true; setTimeout(tryClose, 50); });
+        setTimeout(() => { if (!done) { done = true; tryClose(); } }, 400);
+        return;
+      }
+    } catch (e) { /* not mounted */ }
+    setTimeout(tryClose, 0);
+  }
+  // DoA's runner prints "###game_end###0" and then blocks in its own teardown before calling
+  // ExitProcess, so win_sched_halt/finishSession never run and the tab freezes on the last frame.
+  // Act on that line while the JS thread is still ours: close the tab synchronously if the browser
+  // allows it, otherwise navigate to the restart view before the teardown blocks the renderer.
+  function hardExit(code) {
+    if (exited || crashed) return;
+    exited = true;
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* storage disabled */ }
+    try { if (Module.winAudio && Module.winAudio.ctx) Module.winAudio.ctx.close(); } catch (e) { /* already closed */ }
+    const hud = document.getElementById('hud');
+    if (hud) hud.style.display = 'none';
+    canvas.style.cursor = 'default';
+    status.style.display = '';
+    status.textContent = `The game exited (status ${code | 0}).`;
+    // Chrome ignores close() while the document is still fullscreen; the promise is irrelevant
+    // here because a successful close unloads the page.
+    try {
+      const p = document.fullscreenElement && document.exitFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* not fullscreen */ }
+    if (window.opener) {
+      // Opened by a script: close() is allowed, and the tab goes away without touching the
+      // (about to block) wasm thread again.
+      try { window.close(); } catch (e) { /* refused */ }
+      return;
+    }
+    // Hand-opened tab: close() is refused. Do not even call it here: the refusal can delay the
+    // navigation until after the guest blocks the renderer. Navigate first; the browser commits
+    // this document away before the teardown spin starts, and the new page shows the restart UI.
+    showEnded(code);
+    try { location.replace(ENDED_URL); } catch (e) { /* navigation refused */ }
+  }
+  var Module = {
+    canvas,
+    isaacPresents: 0, // incremented by win_gl_present (rt/win/gl_web.c) on every D3D11 Present
+    preRun: [() => {
+      if (new URLSearchParams(location.search).has('gltrace'))
+        ENV.YASR_GL_TRACE = '1';
+    }],
+    print: (t) => {
+      isaacOut(t, console.log);
+      if (!exited && !crashed && String(t).indexOf('###game_end###') >= 0) hardExit(0);
+    },
+    printErr: (t) => isaacOut(t, console.warn),
+    onAbort: (what) => showCrash(what),
+    onGameExit: (code) => finishSession(code), // called from win_sched_halt (web_sched.js)
+    setStatus: (t) => { status.textContent = t; if (!t) status.style.display = 'none'; },
+    onRuntimeInitialized: () => {
+      try { sessionStorage.removeItem(RELOADED_KEY); } catch (e) { /* storage disabled */ }
+      status.textContent = 'Running (click the game to enable audio)';
+      setTimeout(() => status.style.display = 'none', 4000);
+      canvas.focus();
+    },
+  };
+  // The guest asks for NEAREST filtering, so its 480x270 art is upscaled in hard 2x blocks.
+  // "upscale" overrides the magnification filter with LINEAR for a softened picture (the 3D
+  // bevels and paper shading in the cutscenes read better that way on a large screen). Kept in
+  // localStorage, `?smooth=1`/`?smooth=0` forces it for screenshots; the runtime polls
+  // Module.yasrSmooth on every present (rt/win/opengl32.c) and refilters the live textures, so
+  // the switch takes effect mid-frame without a reload.
+  let smoothMode = false;
+  try { const v = localStorage.getItem('yasr.smooth'); if (v !== null) smoothMode = v === '1'; } catch (e) { /* storage disabled */ }
+  const smoothParam = new URLSearchParams(location.search).get('smooth');
+  if (smoothParam !== null) smoothMode = smoothParam !== '0';
+  const smoothBtn = document.getElementById('tsmooth');
+  function applySmooth() {
+    if (smoothBtn) smoothBtn.classList.toggle('on', smoothMode);
+    Module.yasrSmooth = smoothMode ? 1 : 0;
+  }
+  if (smoothBtn) smoothBtn.addEventListener('click', () => {
+    smoothMode = !smoothMode;
+    try { localStorage.setItem('yasr.smooth', smoothMode ? '1' : '0'); } catch (e) { /* storage disabled */ }
+    applySmooth();
+    canvas.focus();
+  });
+  applySmooth();
+  // FPS = game frames presented per second (not browser repaints), updated twice a second.
+  const fpsEl = document.getElementById('fps');
+  let lastN = 0, lastT = performance.now();
+  setInterval(() => {
+    // yasrPresents/yasrMem: the per-title build renames every `isaac*` identifier in this page, so a
+    // isaac*-only read left the counter at "-- fps" while the game was presenting frames.
+    const now = performance.now(), n = (Module.yasrPresents ?? Module.isaacPresents ?? 0) | 0;
+    const fps = (n - lastN) * 1000 / (now - lastT);
+    lastN = n; lastT = now;
+    fpsEl.textContent = (n ? fps.toFixed(1) : '--') + ' fps';
+    fpsEl.style.color = fps >= 50 ? '#8f8' : fps >= 25 ? '#ff8' : '#f88';
+    const m = Module.yasrMem || Module.isaacMem;
+    if (m) {
+      memEl.textContent = `${m.heapMB.toFixed(0)}/${m.maxMB.toFixed(0)} MB (${m.usedMB.toFixed(0)} used) · ${m.threads} thr`;
+      memEl.style.color = m.heapMB >= m.maxMB * 0.9 ? '#f88' : m.heapMB >= m.maxMB * 0.75 ? '#ff8' : '#ccc';
+    }
+    if (n && !crashed && !exited && ++beat % 4 === 0) saveSession(true); // every 2 s
+  }, 500);
+  const memEl = document.getElementById('mem');
+  const hudEl = document.getElementById('hud');
+  // Debug toggles: hide the fps counter and/or the memory readout. The choice is kept in
+  // localStorage so it survives a reload; `?fps=0` / `?mem=0` force it off for screenshots.
+  const params = new URLSearchParams(location.search);
+  // The guest could not be closed (hand-opened tab) and its teardown would freeze the page, so
+  // it navigated here instead. Do not load the runtime again: show the restart panel only.
+  if (params.get('ended') === '1') {
+    status.style.display = 'none';
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('endedtext').textContent = 'Start a new session to play again.';
+    document.getElementById('ended').style.display = 'flex';
+  }
+  const debugState = {
+    fps: params.get('fps') !== '0' && localStorage.getItem('yasr.hud.fps') !== '0',
+    mem: params.get('mem') !== '0' && localStorage.getItem('yasr.hud.mem') === '1',
+  };
+  function applyDebug() {
+    hudEl.classList.toggle('hide-fps', !debugState.fps);
+    hudEl.classList.toggle('hide-mem', !debugState.mem);
+    document.getElementById('tfps').classList.toggle('on', debugState.fps);
+    document.getElementById('tmem').classList.toggle('on', debugState.mem);
+    try {
+      localStorage.setItem('yasr.hud.fps', debugState.fps ? '1' : '0');
+      localStorage.setItem('yasr.hud.mem', debugState.mem ? '1' : '0');
+    } catch (e) { /* storage disabled */ }
+  }
+  document.getElementById('tfps').addEventListener('click', () => {
+    debugState.fps = !debugState.fps; applyDebug(); canvas.focus();
+  });
+  document.getElementById('tmem').addEventListener('click', () => {
+    debugState.mem = !debugState.mem; applyDebug(); canvas.focus();
+  });
+  applyDebug();
+  let beat = 0;
+  // Fullscreen the whole page so the HUD stays visible; fit() rescales the canvas.
+  const fsBtn = document.getElementById('fs');
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch((e) => console.warn('fullscreen:', e));
+    canvas.focus();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    fsBtn.textContent = document.fullscreenElement ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
+    fit();
+    canvas.focus();
+  });
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+  addEventListener('error', (e) => {
+    if (exited || !(Module.calledRun || e.error)) return;
+    const stack = e.error && e.error.stack;
+    showCrash((e.message || String(e.error)) + (stack ? '\n' + stack : ''));
+  });
+  addEventListener('unhandledrejection', (e) => { if (!exited) showCrash('unhandled rejection: ' + (e.reason && e.reason.stack || e.reason)); });
+  document.getElementById('again').addEventListener('click', () => { location.href = location.pathname; });
+  document.getElementById('crashcopy').addEventListener('click', () => {
+    const t = document.getElementById('crashlog').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
+      () => document.getElementById('crashcopy').textContent = 'Copied',
+      () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('crashlog'));
+              getSelection().removeAllRanges(); getSelection().addRange(r); });
+  });
+  // The D3D11 shim keeps no CPU copy of GPU-only resources, so a lost WebGL context cannot be
+  // restored in place; tell the user instead of showing a silently black canvas.
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    console.warn('isaac: WebGL context lost');
+    status.style.display = '';
+    status.textContent = 'The GPU context was lost (driver reset or too many WebGL pages). Reload to restart.';
+  });
+</script>
+<script>
+  (function loadRuntime() {
+    if (new URLSearchParams(location.search).get('ended') === '1') return;
+    const wasmParts = ["isaac.wasm.part0", "isaac.wasm.part1"];
+    const dataParts = ["isaac.data.part0", "isaac.data.part1", "isaac.data.part2", "isaac.data.part3", "isaac.data.part4", "isaac.data.part5", "isaac.data.part6", "isaac.data.part7", "isaac.data.part8", "isaac.data.part9", "isaac.data.part10", "isaac.data.part11", "isaac.data.part12", "isaac.data.part13", "isaac.data.part14", "isaac.data.part15", "isaac.data.part16"];
+    const override = new URLSearchParams(location.search).get('v');
+    const q = override ? '?v=' + encodeURIComponent(override) : '';
+    const totalParts = wasmParts.length + dataParts.length;
+    let doneParts = 0;
+    let finished = false;
+    const progress = document.createElement('div');
+    progress.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;'
+      + 'z-index:15;font:12px ui-monospace,Menlo,Consolas,monospace;color:#ccc;text-align:center';
+    const progressLabel = document.createElement('div');
+    progressLabel.style.cssText = 'margin-bottom:4px';
+    const progressTrack = document.createElement('div');
+    progressTrack.style.cssText = 'height:8px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden';
+    const progressBar = document.createElement('div');
+    progressBar.style.cssText = 'height:100%;width:0;background-color:#8f8;transition:width .12s linear';
+    progressTrack.appendChild(progressBar);
+    progress.appendChild(progressLabel);
+    progress.appendChild(progressTrack);
+    document.body.appendChild(progress);
+
+    function showProgress() {
+      const text = `Loading game files… ${doneParts}/${totalParts} parts`;
+      progressLabel.textContent = text;
+      progressBar.style.width = (doneParts / totalParts * 100) + '%';
+      if (!finished) status.textContent = text;
+    }
+
+    async function merged(parts, mime) {
+      const buffers = [];
+      for (const part of parts) {
+        const response = await fetch(new URL(part, document.baseURI).href + q);
+        if (!response.ok) throw new Error(`Failed to fetch ${part}: ${response.status}`);
+        buffers.push(await response.arrayBuffer());
+        doneParts++;
+        showProgress();
+      }
+      return URL.createObjectURL(new Blob(buffers, { type: mime }));
+    }
+
+    showProgress();
+    (async () => {
+      const urls = {
+        'isaac.wasm': await merged(wasmParts, 'application/wasm'),
+        'isaac.data': await merged(dataParts, 'application/octet-stream'),
+      };
+      Module.locateFile = (path, prefix) => urls[path] || (prefix || '') + path + q;
+      finished = true;
+      progress.remove();
+      status.textContent = 'Starting…';
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = 'isaac.js' + q;
+      script.onerror = () => { status.textContent = 'Cannot load isaac.js -- reload the page.'; };
+      if (!window.jspiMissing) document.head.appendChild(script);
+    })().catch((error) => {
+      console.error('isaac: failed to load split build:', error);
+      finished = true;
+      progressLabel.textContent = 'Failed to load the game files: ' + error.message;
+      progressBar.style.backgroundColor = '#c66';
+      status.textContent = '';
+    });
+  })();
+</script>
+</body>
+</html>
