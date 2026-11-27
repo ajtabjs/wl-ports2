@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="520" viewBox="0 0 480 520">
+  <!-- Temporary, original costume icon. Replace when the outfit artwork is ready. -->
+  <g stroke="#183c35" stroke-width="8" stroke-linejoin="round">
+    <path d="M167 69L94 105 37 261 106 287 134 218 113 443 367 443 346 218 374 287 443 261 386 105 313 69Z" fill="#283637"/>
+    <path d="M167 69L196 63H284L313 69 307 265H173Z" fill="#f6f3e9"/>
+    <path d="M167 69L147 113 172 147 132 442H190L212 147Z" fill="#43866a"/>
+    <path d="M313 69L333 113 308 147 348 442H290L268 147Z" fill="#43866a"/>
+    <path d="M196 63L240 94 212 125 186 82M284 63L240 94 268 125 294 82" fill="#ffffff"/>
+    <path d="M229 95H251L256 117 247 130 262 227 240 249 218 227 233 130 224 117Z" fill="#488f70"/>
+    <path d="M229 164L253 152M226 190L257 175M224 216L260 198" stroke="#ced9d1"/>
+    <path d="M175 265H305L330 371H150Z" fill="#3f494d"/>
+    <path d="M204 270L193 367M240 270V367M276 270L287 367" stroke="#75817d" stroke-width="5"/>
+    <path d="M355 389L418 180" stroke="#bb9462" stroke-width="13" stroke-linecap="round"/>
+  </g>
+</svg>

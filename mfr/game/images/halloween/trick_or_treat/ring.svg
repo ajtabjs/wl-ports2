@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><defs><radialGradient id="ring"><stop offset=".52" stop-color="#ffd6aa" stop-opacity="0"/>
+<stop offset=".6" stop-color="#ffd6aa" stop-opacity=".55"/><stop offset=".7" stop-color="#ffd6aa" stop-opacity="0"/>
+</radialGradient></defs><circle cx="80" cy="80" r="80" fill="url(#ring)"/></svg>

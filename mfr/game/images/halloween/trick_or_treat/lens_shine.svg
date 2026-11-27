@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="lens" gradientUnits="userSpaceOnUse"
+x1="600" y1="200" x2="680" y2="200" gradientTransform="rotate(-16 640 200)">
+<stop stop-color="#dce9ff" stop-opacity="0"/>
+<stop offset=".25" stop-color="#e6efff" stop-opacity=".12"/>
+<stop offset=".5" stop-color="#f2f6ff" stop-opacity=".65"/>
+<stop offset=".75" stop-color="#e6efff" stop-opacity=".12"/>
+<stop offset="1" stop-color="#dce9ff" stop-opacity="0"/>
+</linearGradient></defs><rect width="1280" height="720" fill="url(#lens)"/></svg>

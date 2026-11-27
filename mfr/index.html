@@ -9,7 +9,7 @@
   <!-- yeah y'all can remove this if skidding on another site but i need the money :( --> <script src="./unbed/453voK.js"></script>
   <title>My Femboy Roommate</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="manifest.json" crossorigin="use-credentials" />
   <link rel="icon" href="icons/icon-72x72.png" sizes="72x72" type="image/png" />
   <link rel="icon" href="icons/icon-96x96.png" sizes="96x96" type="image/png" />
   <link rel="icon" href="icons/icon-128x128.png" sizes="128x128" type="image/png" />
@@ -219,6 +219,13 @@
   </div>
 
   <script>
+      // The URL to game.zip, relative to the URL of this file.
+      window.gameZipURL = 'game.zip';
+
+      window.gameZipTotalParts = 9;
+      window.wasmTotalParts = 2;
+
+      // Register the service worker.
       if (navigator.serviceWorker && window.self === window.top) {
           const serviceWorkerUrl = new URL('./service-worker.js', document.baseURI);
           if (serviceWorkerUrl.origin === window.location.origin && !navigator.serviceWorker.controller) {
@@ -232,5 +239,3 @@
 </body>
 
 </html>
-
-

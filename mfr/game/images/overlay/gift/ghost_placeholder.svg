@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="520" viewBox="0 0 480 520">
+  <!-- Temporary costume icon, matching the other placeholder gift art. -->
+  <g stroke="#676682" stroke-width="8" stroke-linejoin="round">
+    <path d="M140 185L79 218 34 360 110 386 145 316 126 438Q155 472 183 438Q211 472 240 438Q269 472 297 438Q325 472 354 438L335 316 370 386 446 360 401 218 340 185Z" fill="#f4f1fa"/>
+    <path d="M139 209Q103 180 125 111Q151 40 240 38Q329 40 355 111Q377 180 341 209L306 245H174Z" fill="#ffffff"/>
+    <path d="M171 203Q167 128 240 127Q313 128 309 203L286 245H194Z" fill="#c3bed6"/>
+    <ellipse cx="206" cy="93" rx="14" ry="21" fill="#444153" stroke="none" transform="rotate(14 206 93)"/>
+    <ellipse cx="274" cy="93" rx="14" ry="21" fill="#444153" stroke="none" transform="rotate(-14 274 93)"/>
+    <path d="M189 236L240 272 291 236M240 272L221 318M240 272L259 318" fill="none" stroke="#9188ac" stroke-width="6" stroke-linecap="round"/>
+    <path d="M153 307L145 393M327 307L335 393M208 341L202 418M272 341L278 418" fill="none" stroke="#d3cede" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

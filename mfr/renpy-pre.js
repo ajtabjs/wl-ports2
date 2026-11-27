@@ -134,6 +134,13 @@ Module.preRun = Module.preRun || [ ];
         s = s.replace('\n', '<br />', 'g');
 
         statusText += s;
+
+        let lines = statusText.split("<br />");
+        if (lines.length > 200) {
+            lines = lines.slice(lines.length - 200);
+            statusText = lines.join("<br />");
+        }
+
         statusTextDiv.innerHTML = statusText;
 
         showStatus();
@@ -351,7 +358,7 @@ Module.preRun = Module.preRun || [ ];
         console.log(s);
     }
 
-    const GAME_ZIP_TOTAL_PARTS = 36; // parts 0 through 35
+    const GAME_ZIP_TOTAL_PARTS = window.gameZipTotalParts || 1;
 
     async function loadGameZip() {
 
@@ -367,10 +374,12 @@ Module.preRun = Module.preRun || [ ];
             }
 
             for (let i = 0; i < GAME_ZIP_TOTAL_PARTS; i++) {
-                let response = await fetch('game.zip.part' + i);
+
+                let partName = window.gameZipURL + '.part' + i;
+                let response = await fetch(partName);
 
                 if (!response.ok) {
-                    reportError("Could not load game.zip.part" + i + ": " + response.status + " " + response.statusText);
+                    reportError("Could not load " + partName + ": " + response.status + " " + response.statusText);
                     FS.close(f);
                     return;
                 }
@@ -387,6 +396,7 @@ Module.preRun = Module.preRun || [ ];
                 let reader = response.body.getReader();
 
                 while (true) {
+
                     let { done, value } = await reader.read();
 
                     if (done) {
@@ -412,6 +422,51 @@ Module.preRun = Module.preRun || [ ];
         } catch (e) {
             reportError("Could not download game.zip parts", e);
         }
+    }
+
+    const WASM_TOTAL_PARTS = window.wasmTotalParts || 1;
+
+    if (WASM_TOTAL_PARTS > 1) {
+
+        Module.instantiateWasm = function (imports, successCallback) {
+
+            (async () => {
+                try {
+                    let chunks = [];
+                    let total = 0;
+
+                    for (let i = 0; i < WASM_TOTAL_PARTS; i++) {
+                        let partName = 'renpy.wasm.part' + i;
+                        let response = await fetch(partName);
+
+                        if (!response.ok) {
+                            reportError("Could not load " + partName + ": " + response.status + " " + response.statusText);
+                            return;
+                        }
+
+                        let chunk = new Uint8Array(await response.arrayBuffer());
+                        chunks.push(chunk);
+                        total += chunk.length;
+                    }
+
+                    let bytes = new Uint8Array(total);
+                    let offset = 0;
+
+                    for (let chunk of chunks) {
+                        bytes.set(chunk, offset);
+                        offset += chunk.length;
+                    }
+
+                    let result = await WebAssembly.instantiate(bytes.buffer, imports);
+                    successCallback(result.instance, result.module);
+
+                } catch (e) {
+                    reportError("Could not load renpy.wasm parts", e);
+                }
+            })();
+
+            return {};
+        };
     }
 
     function runLoadGameZip() {
@@ -831,24 +886,37 @@ Module.preRun = Module.preRun || [ ];
      * @param inFile The file to send to the server. A string giving the file name, or null for no file.
      * @param outFile The file to write the response to. A string giving the file name, or null for no file.
      * @param inContentType The content type of the file to send to the server. A string giving the content type. Ignored if inFile is null.
+     * @param headers A string containing a JSON object that contains the headers to send to the server.
      *
      * @return A string giving the result of the fetch. The first word is the status, which is one of "OK", "ERROR", or "PENDING", followed by the HTTP status code and status text.
      */
-    function fetchFile(method, url, inFile, outFile, inContentType) {
+    function fetchFile(method, url, inFile, outFile, inContentType, headers) {
 
         let id = fetchId++;
         fetchResult[id] = "PENDING Fetch in progress.";
+
+        // Ensure headers exists and is not a copy.
+        if (headers) {
+            headers = JSON.parse(headers)
+        } else {
+            headers = { };
+        }
+
+        headers = { ...headers };
 
         async function fetchFileWork() {
             try {
 
                 let content = ''
 
-                let options = { method: method };
+                if (inFile) {
+                    headers["Content-Type"] = inContentType || 'application/octet-stream';
+                }
+
+                let options = { method: method, headers: headers};
 
                 if (inFile) {
                     options.body = FS.readFile(inFile, { encoding: 'binary' });
-                    options.headers = { 'Content-Type': inContentType || 'application/octet-stream' };
                 }
 
                 let response = await fetch(url, options);
